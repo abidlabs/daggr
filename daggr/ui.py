@@ -1,217 +1,165 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Dict, Any, List
+
 import gradio as gr
-from typing import Dict, Any, List, Optional
-from daggr.workflow import Workflow
+
 from daggr.executor import SequentialExecutor
+
+if TYPE_CHECKING:
+    from daggr.graph import Graph
 
 
 class UIGenerator:
-    def __init__(self, workflow: Workflow):
-        self.workflow = workflow
-        self.executor = SequentialExecutor(workflow)
+    def __init__(self, graph: Graph):
+        self.graph = graph
+        self.executor = SequentialExecutor(graph)
         self.current_state: Dict[str, Any] = {}
         self.completed_nodes: set = set()
 
-    def _create_node_ui(self, node_name: str) -> Dict[str, gr.Component]:
-        node = self.workflow.nodes[node_name]
-        components = {}
+    def _is_entry_or_interaction(self, node_name: str) -> bool:
+        from daggr.node import InteractionNode
 
-        if node.is_interaction_point or self.workflow.graph.in_degree(node_name) == 0:
-            if node.inputs:
-                for idx, param in enumerate(node.inputs):
-                    param_name = param.get("label") or param.get("name") or f"input_{idx}"
-                    param_type = param.get("type", "string")
-                    param_label = param.get("label") or param.get("name") or param_name
+        node = self.graph.nodes[node_name]
+        if isinstance(node, InteractionNode):
+            return True
+        return self.graph._nx_graph.in_degree(node_name) == 0
 
-                    if param_type in ["string", "text"]:
-                        components[f"{node_name}_input_{param_name}"] = gr.Textbox(
-                            label=f"{node.name}: {param_label}"
-                        )
-                    elif param_type in ["number", "float", "int"]:
-                        components[f"{node_name}_input_{param_name}"] = gr.Number(
-                            label=f"{node.name}: {param_label}"
-                        )
-                    else:
-                        components[f"{node_name}_input_{param_name}"] = gr.Textbox(
-                            label=f"{node.name}: {param_label}"
-                        )
-            else:
-                components[f"{node_name}_input"] = gr.Textbox(
-                    label=f"{node.name}: Input"
+    def _create_node_input_ui(self, node_name: str) -> List[gr.Component]:
+        from daggr.node import InteractionNode, GradioNode
+        from daggr.ops import ChooseOne, TextInput, ImageInput
+
+        node = self.graph.nodes[node_name]
+        components = []
+
+        if isinstance(node, ChooseOne):
+            components.append(
+                gr.Radio(
+                    label=f"{node.name}: Select one",
+                    choices=[],
+                    interactive=True,
                 )
-
-        components[f"{node_name}_output"] = gr.HTML(
-            value="",
-            html_template="""
-            <div class="node-output" data-node="${node_name}">
-                <h3>${node_name}</h3>
-                <div class="status">Pending</div>
-                <div class="result">{{result}}</div>
-            </div>
-            """,
-            css_template="""
-            .node-output {
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 16px;
-                margin: 8px 0;
-                background: #f9f9f9;
-            }
-            .node-output h3 {
-                margin: 0 0 8px 0;
-                color: #333;
-            }
-            .status {
-                font-weight: bold;
-                margin: 8px 0;
-            }
-            .result {
-                margin-top: 8px;
-                padding: 8px;
-                background: white;
-                border-radius: 4px;
-            }
-            """,
-            node_name=node_name,
-            result="",
-        )
+            )
+        elif isinstance(node, TextInput):
+            components.append(
+                gr.Textbox(
+                    label=node.label,
+                    interactive=True,
+                )
+            )
+        elif isinstance(node, ImageInput):
+            components.append(
+                gr.Image(
+                    label=node.label,
+                    interactive=True,
+                )
+            )
+        elif isinstance(node, InteractionNode):
+            components.append(
+                gr.Textbox(
+                    label=f"{node.name}: Input",
+                    interactive=True,
+                )
+            )
+        elif isinstance(node, GradioNode):
+            for port_name in node._input_ports:
+                components.append(
+                    gr.Textbox(
+                        label=f"{node.name}: {port_name}",
+                        interactive=True,
+                    )
+                )
+        else:
+            for port_name in node._input_ports:
+                components.append(
+                    gr.Textbox(
+                        label=f"{node.name}: {port_name}",
+                        interactive=True,
+                    )
+                )
 
         return components
 
-    def _format_result(self, result: Any) -> str:
-        if result is None:
-            return "<p>No output</p>"
-        if isinstance(result, (list, tuple)):
-            if len(result) == 0:
-                return "<p>Empty result</p>"
-            if len(result) == 1:
-                return self._format_result(result[0])
-            return f"<p>{len(result)} outputs</p>"
-        if isinstance(result, dict):
-            items = [f"<li><strong>{k}:</strong> {str(v)[:100]}</li>" for k, v in result.items()]
-            return f"<ul>{''.join(items)}</ul>"
-        result_str = str(result)
-        if len(result_str) > 200:
-            result_str = result_str[:200] + "..."
-        return f"<p>{result_str}</p>"
-
-    def _update_node_output(self, node_name: str, result: Any, status: str = "completed"):
-        node = self.workflow.nodes[node_name]
-        formatted_result = self._format_result(result)
-
-        return gr.HTML(
-            node_name=node_name,
-            result=formatted_result,
-            html_template="""
-            <div class="node-output" data-node="${node_name}">
-                <h3>${node_name}</h3>
-                <div class="status status-${status}">${status}</div>
-                <div class="result">{{result}}</div>
-            </div>
-            """,
-            css_template="""
-            .node-output {
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 16px;
-                margin: 8px 0;
-                background: #f9f9f9;
-            }
-            .node-output h3 {
-                margin: 0 0 8px 0;
-                color: #333;
-            }
-            .status {
-                font-weight: bold;
-                margin: 8px 0;
-            }
-            .status-completed {
-                color: #4caf50;
-            }
-            .status-pending {
-                color: #ff9800;
-            }
-            .status-error {
-                color: #f44336;
-            }
-            .result {
-                margin-top: 8px;
-                padding: 8px;
-                background: white;
-                border-radius: 4px;
-            }
-            """,
+    def _create_node_output_ui(self, node_name: str) -> gr.Component:
+        return gr.JSON(
+            label=f"{node_name} Output",
+            value=None,
         )
 
-    def _execute_workflow(self, *args):
-        execution_order = self.workflow.get_execution_order()
-        
-        input_components_map = {}
-        input_idx = 0
-        for node_name in execution_order:
-            node = self.workflow.nodes[node_name]
-            if node.is_interaction_point or self.workflow.graph.in_degree(node_name) == 0:
-                if node.inputs:
-                    for idx, param in enumerate(node.inputs):
-                        param_name = param.get("label") or param.get("name") or f"input_{idx}"
-                        input_components_map[input_idx] = (node_name, param_name)
-                        input_idx += 1
-                else:
-                    input_components_map[input_idx] = (node_name, None)
-                    input_idx += 1
+    def _format_result(self, result: Any) -> Any:
+        if result is None:
+            return {"status": "No output"}
+        if isinstance(result, (str, int, float, bool)):
+            return {"result": result}
+        if isinstance(result, (list, tuple)):
+            return {"results": list(result)}
+        if isinstance(result, dict):
+            return result
+        return {"result": str(result)}
 
-        input_values = {}
+    def _execute_workflow(self, *args) -> tuple:
+        from daggr.node import InteractionNode
+
+        execution_order = self.graph.get_execution_order()
+
+        input_mapping = []
+        for node_name in execution_order:
+            node = self.graph.nodes[node_name]
+            if self._is_entry_or_interaction(node_name):
+                if isinstance(node, InteractionNode):
+                    input_mapping.append((node_name, node._input_ports[0] if node._input_ports else "input"))
+                else:
+                    for port_name in node._input_ports:
+                        input_mapping.append((node_name, port_name))
+
+        input_values: Dict[str, Dict[str, Any]] = {}
         for idx, arg_value in enumerate(args):
-            if idx in input_components_map:
-                node_name, param_name = input_components_map[idx]
+            if idx < len(input_mapping):
+                node_name, port_name = input_mapping[idx]
                 if node_name not in input_values:
                     input_values[node_name] = {}
-                if param_name:
-                    input_values[node_name][param_name] = arg_value
-                else:
-                    input_values[node_name] = arg_value
+                input_values[node_name][port_name] = arg_value
 
         outputs = []
         self.executor.results = {}
 
         try:
             for node_name in execution_order:
-                node = self.workflow.nodes[node_name]
                 user_input = input_values.get(node_name, {})
-                if not isinstance(user_input, dict) and user_input is not None:
-                    user_input = {"input": user_input}
                 result = self.executor.execute_node(node_name, user_input)
-                outputs.append(self._update_node_output(node_name, result, "completed"))
+                outputs.append(self._format_result(result))
         except Exception as e:
-            error_node = execution_order[len(self.executor.results)] if self.executor.results else execution_order[0]
-            outputs.append(self._update_node_output(error_node, str(e), "error"))
-            for remaining_node in execution_order[len(self.executor.results) + 1 :]:
-                outputs.append(self._update_node_output(remaining_node, "", "pending"))
+            remaining_count = len(execution_order) - len(outputs)
+            outputs.append({"error": str(e)})
+            for _ in range(remaining_count - 1):
+                outputs.append({"status": "skipped"})
 
         while len(outputs) < len(execution_order):
-            outputs.append(gr.HTML(value=""))
+            outputs.append({"status": "pending"})
 
         return tuple(outputs)
 
     def generate_ui(self) -> gr.Blocks:
-        with gr.Blocks(title=self.workflow.name) as demo:
-            gr.Markdown(f"# {self.workflow.name}")
+        with gr.Blocks(title=self.graph.name) as demo:
+            gr.Markdown(f"# {self.graph.name}")
 
-            execution_order = self.workflow.get_execution_order()
-            input_components = []
-            output_components = []
+            execution_order = self.graph.get_execution_order()
+            input_components: List[gr.Component] = []
+            output_components: List[gr.Component] = []
 
-            for node_name in execution_order:
-                node = self.workflow.nodes[node_name]
-                node_ui = self._create_node_ui(node_name)
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.Markdown("### Inputs")
+                    for node_name in execution_order:
+                        if self._is_entry_or_interaction(node_name):
+                            node_inputs = self._create_node_input_ui(node_name)
+                            input_components.extend(node_inputs)
 
-                if node.is_interaction_point or self.workflow.graph.in_degree(node_name) == 0:
-                    for key, component in node_ui.items():
-                        if "input" in key:
-                            input_components.append(component)
-
-                for key, component in node_ui.items():
-                    if "output" in key:
-                        output_components.append(component)
+                with gr.Column(scale=2):
+                    gr.Markdown("### Workflow Output")
+                    for node_name in execution_order:
+                        output_comp = self._create_node_output_ui(node_name)
+                        output_components.append(output_comp)
 
             if input_components:
                 run_btn = gr.Button("Run Workflow", variant="primary")
@@ -221,7 +169,11 @@ class UIGenerator:
                     outputs=output_components,
                 )
             else:
-                gr.Markdown("No input nodes found in workflow")
+                auto_run_btn = gr.Button("Run Workflow", variant="primary")
+                auto_run_btn.click(
+                    fn=self._execute_workflow,
+                    inputs=[],
+                    outputs=output_components,
+                )
 
         return demo
-

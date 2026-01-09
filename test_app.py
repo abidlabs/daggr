@@ -1,10 +1,12 @@
-from daggr import Workflow, GradioNode
+from daggr import Graph, GradioNode, FnNode, ops
+
+
+def process_text(text: str) -> dict:
+    return {"processed": text.upper(), "length": len(text)}
+
 
 if __name__ == "__main__":
-    print("Creating workflow...")
-    workflow = Workflow(name="Simple Text Processing Pipeline")
-
-    print("Adding nodes...")
+    print("Creating nodes...")
     text_generator = GradioNode(
         src="gradio/gpt2",
         name="Text Generator"
@@ -15,20 +17,13 @@ if __name__ == "__main__":
         name="Text Summarizer"
     )
 
-    workflow.add_node(text_generator)
-    workflow.add_node(text_summarizer)
+    print("Building graph with new syntax...")
+    with Graph(name="Simple Text Processing Pipeline") as graph:
+        text_generator["output"] >> text_summarizer["text"]
 
-    print("Connecting nodes...")
-    workflow.connect(
-        source=text_generator,
-        source_output="0",
-        target=text_summarizer,
-        target_input="text"
-    )
-
-    print("Marking interaction point...")
-    workflow.mark_interaction(text_generator)
+    print(f"Graph created: {graph}")
+    print(f"Nodes: {list(graph.nodes.keys())}")
+    print(f"Edges: {graph.get_connections()}")
 
     print("Launching workflow UI...")
-    workflow.launch()
-
+    graph.launch()
