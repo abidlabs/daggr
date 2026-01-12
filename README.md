@@ -39,61 +39,6 @@ with Graph(name="Text Pipeline") as graph:
 graph.launch()
 ```
 
-<img width="1512" height="775" alt="image" src="https://github.com/user-attachments/assets/5ebf52f3-b3bc-4cbc-b32a-8c1dee2322e1" />
-
-
-### Node Types
-
-**GradioNode** - Connect to Gradio apps (Spaces or URLs):
-```python
-app = GradioNode(src="username/space-name", name="My App")
-app = GradioNode(src="http://localhost:7860", inputs=["image", "text"])
-```
-
-**FnNode** - Use arbitrary Python functions:
-```python
-def process(image: str, prompt: str) -> dict:
-    return {"result": f"Processed {image} with {prompt}"}
-
-processor = FnNode(fn=process)
-# Automatically discovers input ports: ["image", "prompt"]
-# Output port: ["output"] (or specify with outputs=["result"])
-```
-
-**InferenceNode** - Connect to HuggingFace models:
-```python
-model = InferenceNode(model="gpt2")
-```
-
-**InteractionNode** - Create UI interaction points:
-```python
-from daggr import ops
-
-# User selects one from multiple options
-chooser = ops.ChooseOne()
-
-# User provides text input
-text_input = ops.TextInput(label="Enter prompt")
-
-# User uploads an image
-image_input = ops.ImageInput(label="Upload image")
-```
-
-### Connecting Nodes
-
-Use the `>>` operator to create edges between nodes:
-
-```python
-with Graph() as graph:
-    # Explicit port names
-    node1["output"] >> node2["input"]
-    
-    # Shorthand for single I/O nodes
-    node1 >> node2
-    
-    # Chaining multiple nodes
-    node1["out"] >> node2["in"] >> node3["data"]
-```
 
 ### Complete Example
 
