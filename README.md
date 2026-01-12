@@ -2,7 +2,7 @@
 <img src="https://github.com/user-attachments/assets/973811ad-e657-43b5-acd6-e7506ab2810e" alt="daggr" width="75%">
 </div>
 
-`daggr` is a Python package for building resilient DAG-based workflows that connect Gradio apps, ML models via inference providers, and custom functions.
+`daggr` is a Python package for building resilient AI workflows that connect Gradio apps, ML models via inference providers, and custom functions.
 
 ## Installation
 
