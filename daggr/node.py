@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, List, Optional
 
-from daggr.port import Port
+from daggr.port import Port, PortNamespace
 
 
 class Node(ABC):
@@ -16,7 +16,6 @@ class Node(ABC):
         self._name = name
         self._input_ports: List[str] = []
         self._output_ports: List[str] = []
-        self._api_info: Optional[Dict[str, Any]] = None
         self._output_components: List[Any] = outputs or []
 
     @property
@@ -24,23 +23,13 @@ class Node(ABC):
     def name(self) -> str:
         pass
 
-    def __getitem__(self, port_name: str) -> Port:
-        return Port(self, port_name)
+    @property
+    def inputs(self) -> PortNamespace:
+        return PortNamespace(self, self._input_ports)
 
-    def __rshift__(self, other: Port | Node) -> Port:
-        from daggr.edge import Edge
-
-        source_port = self._default_output_port()
-        if isinstance(other, Port):
-            Edge(source_port, other)
-            return other.node._default_output_port()
-        else:
-            target_port = other._default_input_port()
-            Edge(source_port, target_port)
-            return other._default_output_port()
-
-    def _default_port(self) -> Port:
-        return self._default_output_port()
+    @property
+    def outputs(self) -> PortNamespace:
+        return PortNamespace(self, self._output_ports)
 
     def _default_output_port(self) -> Port:
         if self._output_ports:
@@ -83,7 +72,6 @@ class GradioNode(Node):
 
             client = Client(self.src)
             api_info = client.view_api(return_format="dict")
-            self._api_info = api_info
 
             if isinstance(api_info, dict):
                 endpoints = api_info.get("named_endpoints", {})

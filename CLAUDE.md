@@ -35,25 +35,24 @@ daggr is a DAG-based workflow library for connecting Gradio apps, ML models, and
 
 ### Core Components
 
-- **`context.py`**: Context management using `contextvars` for tracking the current Graph (similar to Gradio Blocks)
-- **`graph.py`**: Main `Graph` class with context manager support and DAG validation using networkx
-- **`node.py`**: Node types (`GradioNode`, `InferenceNode`, `FnNode`, `InteractionNode`) with port access via `__getitem__`
-- **`port.py`**: `Port` class representing input/output ports, supports `>>` operator for edge creation
-- **`edge.py`**: `Edge` class that auto-registers nodes with the current graph context
+- **`graph.py`**: Main `Graph` class with `edge()` method for connecting ports
+- **`node.py`**: Node types (`GradioNode`, `InferenceNode`, `FnNode`, `InteractionNode`) with typed `inputs`/`outputs` properties
+- **`port.py`**: `Port` class representing input/output ports, `PortNamespace` for typed port access
+- **`edge.py`**: `Edge` class representing connections between ports
 - **`ops.py`**: Special operation nodes like `ChooseOne`, `TextInput`, `ImageInput`
 - **`executor.py`**: Sequential execution of workflow nodes
 - **`ui.py`**: Generates Gradio UI from the workflow graph
 
 ### Key Design Patterns
 
-1. **Context Manager Pattern**: `with Graph() as graph:` sets up context for edge creation
-2. **Operator Overloading**: `>>` operator creates edges between ports/nodes
-3. **Auto-registration**: Nodes are automatically added to the graph when edges are created
-4. **Port Resolution**: `node["port_name"]` returns a `Port` object; shorthand `node >> node` uses default ports
+1. **Typed Port Access**: `node.inputs.port_name` and `node.outputs.port_name` return `Port` objects with IDE autocomplete
+2. **Explicit Edge Creation**: `graph.edge(source_port, target_port)` creates connections
+3. **Fluent API**: `edge()` returns `self` for chaining: `graph.edge(...).edge(...).edge(...)`
+4. **Auto-discovery**: `FnNode` extracts input ports from function signatures
 
 ### Example Usage
 ```python
-from daggr import Graph, GradioNode, FnNode, ops
+from daggr import Graph, GradioNode, FnNode
 
 def process(text: str) -> dict:
     return {"result": text.upper()}
@@ -61,8 +60,10 @@ def process(text: str) -> dict:
 node1 = FnNode(fn=process)
 node2 = GradioNode(src="gradio/gpt2")
 
-with Graph() as graph:
-    node1["result"] >> node2["input"]
+graph = Graph()
+
+graph \
+    .edge(node1.outputs.result, node2.inputs.input)
 
 graph.launch()
 ```

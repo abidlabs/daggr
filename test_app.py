@@ -80,17 +80,19 @@ combine_full = FnNode(
 )
 
 
-with Graph(name="Podcast Generator") as graph:
-    host_voice_input["Host Voice"] >> host_voice_gen["text_description"]
-    guest_voice_input["Guest Voice"] >> guest_voice_gen["text_description"]
-    topic_input["Topic"] >> dialogue_gen["topic"]
+graph = Graph(name="Podcast Generator")
 
-    dialogue_gen["dialogue"] >> tts_map["items"]
-    host_voice_gen["voice"] >> tts_map["host_voice"]
-    guest_voice_gen["voice"] >> tts_map["guest_voice"]
-
-    tts_map["results"] >> combine_test["segments"]
-    tts_map["results"] >> combine_full["segments"]
+graph.edge(
+    host_voice_input.outputs.Host_Voice, host_voice_gen.inputs.text_description
+).edge(
+    guest_voice_input.outputs.Guest_Voice, guest_voice_gen.inputs.text_description
+).edge(topic_input.outputs.Topic, dialogue_gen.inputs.topic).edge(
+    dialogue_gen.outputs.dialogue, tts_map.inputs.items
+).edge(host_voice_gen.outputs.voice, tts_map.inputs.host_voice).edge(
+    guest_voice_gen.outputs.voice, tts_map.inputs.guest_voice
+).edge(tts_map.outputs.results, combine_test.inputs.segments).edge(
+    tts_map.outputs.results, combine_full.inputs.segments
+)
 
 
 graph.launch()

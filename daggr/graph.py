@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import networkx as nx
 
-from daggr.context import Context, get_graph_context
+from daggr.edge import Edge
 from daggr.node import GradioNode, Node
+from daggr.port import Port
 
 
 class Graph:
@@ -13,18 +14,12 @@ class Graph:
         self.name = name
         self.nodes: Dict[str, Node] = {}
         self._nx_graph = nx.DiGraph()
-        self._edges: List[Any] = []
-        self._parent: Optional[Graph] = None
+        self._edges: List[Edge] = []
 
-    def __enter__(self) -> Graph:
-        self._parent = get_graph_context()
-        Context.root_graph = self
+    def edge(self, source: Port, target: Port) -> Graph:
+        edge = Edge(source, target)
+        self._add_edge(edge)
         return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        Context.root_graph = self._parent
-        self._parent = None
-        return False
 
     def _add_node(self, node: Node) -> None:
         if node.name in self.nodes:
@@ -37,7 +32,7 @@ class Graph:
         if isinstance(node, GradioNode):
             node.discover_api()
 
-    def _add_edge(self, edge: Any) -> None:
+    def _add_edge(self, edge: Edge) -> None:
         self._add_node(edge.source_node)
         self._add_node(edge.target_node)
 

@@ -31,31 +31,80 @@ uv pip install daggr
 
 ## Usage
 
-daggr allows you to build complex pipelines using a clean, intuitive syntax inspired by Airflow.
+daggr allows you to build complex pipelines with type-safe port connections and explicit edge definitions.
 
-### Basic Example
+### Basic Example: Connecting Two Nodes
 
 ```python
-from daggr import Graph, GradioNode, FnNode, ops
+from daggr import Graph, GradioNode
 
-# Create nodes
 text_generator = GradioNode(src="gradio/gpt2", name="Text Generator")
-text_summarizer = GradioNode(src="gradio/distilbart-cnn-12-6", name="Summarizer")
+summarizer = GradioNode(src="gradio/distilbart-cnn-12-6", name="Summarizer")
 
-# Build the graph using context manager and >> operator
-with Graph(name="Text Pipeline") as graph:
-    text_generator["output"] >> text_summarizer["text"]
+graph = Graph(name="Text Pipeline")
 
-# Launch the generated UI
+graph.edge(text_generator.outputs.output, summarizer.inputs.text)
+
 graph.launch()
 ```
 
+### Chaining Multiple Edges
 
-### Complete Example
+Use backslash continuation for clean, readable edge chains:
+
+```python
+from daggr import Graph, FnNode
+
+def step_a(text: str) -> dict:
+    return {"result": text.upper()}
+
+def step_b(data: str) -> dict:
+    return {"result": data + "!"}
+
+def step_c(value: str) -> dict:
+    return {"result": f"Final: {value}"}
+
+node_a = FnNode(fn=step_a)
+node_b = FnNode(fn=step_b)
+node_c = FnNode(fn=step_c)
+
+graph = Graph(name="Chain Example")
+
+graph \
+    .edge(node_a.outputs.result, node_b.inputs.data) \
+    .edge(node_b.outputs.result, node_c.inputs.value)
+
+graph.launch()
+```
+
+### Using FnNode with Python Functions
+
+`FnNode` automatically discovers input ports from function parameters:
+
+```python
+from daggr import Graph, FnNode, InputNode
+import gradio as gr
+
+def process_text(text: str, count: int) -> dict:
+    return {"result": text * count}
+
+text_input = InputNode(inputs=[gr.Textbox(label="Text")])
+count_input = InputNode(inputs=[gr.Number(label="Count")])
+processor = FnNode(fn=process_text, outputs=[gr.Textbox(label="Result")])
+
+graph = Graph()
+
+graph \
+    .edge(text_input.outputs.Text, processor.inputs.text) \
+    .edge(count_input.outputs.Count, processor.inputs.count)
+
+graph.launch()
+```
+
+### Complete Example: Podcast Generator
 
 ```python
 import gradio as gr
-
 from daggr import FnNode, Graph, InputNode, MapNode
 
 
@@ -136,17 +185,17 @@ combine_full = FnNode(
 )
 
 
-with Graph(name="Podcast Generator") as graph:
-    host_voice_input["Host Voice"] >> host_voice_gen["text_description"]
-    guest_voice_input["Guest Voice"] >> guest_voice_gen["text_description"]
-    topic_input["Topic"] >> dialogue_gen["topic"]
+graph = Graph(name="Podcast Generator")
 
-    dialogue_gen["dialogue"] >> tts_map["items"]
-    host_voice_gen["voice"] >> tts_map["host_voice"]
-    guest_voice_gen["voice"] >> tts_map["guest_voice"]
-
-    tts_map["results"] >> combine_test["segments"]
-    tts_map["results"] >> combine_full["segments"]
+graph \
+    .edge(host_voice_input.outputs.Host_Voice, host_voice_gen.inputs.text_description) \
+    .edge(guest_voice_input.outputs.Guest_Voice, guest_voice_gen.inputs.text_description) \
+    .edge(topic_input.outputs.Topic, dialogue_gen.inputs.topic) \
+    .edge(dialogue_gen.outputs.dialogue, tts_map.inputs.items) \
+    .edge(host_voice_gen.outputs.voice, tts_map.inputs.host_voice) \
+    .edge(guest_voice_gen.outputs.voice, tts_map.inputs.guest_voice) \
+    .edge(tts_map.outputs.results, combine_test.inputs.segments) \
+    .edge(tts_map.outputs.results, combine_full.inputs.segments)
 
 
 graph.launch()
