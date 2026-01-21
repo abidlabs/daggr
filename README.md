@@ -1,6 +1,14 @@
-<div align="center">
-<img src="https://github.com/user-attachments/assets/973811ad-e657-43b5-acd6-e7506ab2810e" alt="daggr" width="75%">
-</div>
+<h3 align="center">
+  <div style="display:flex;flex-direction:row;">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="daggr/assets/logo_dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="daggr/assets/logo_light.png">
+      <img width="75%" alt="Trackio Logo" src="daggr/assets/logo_light.png">
+    </picture>
+    <p>DAG-based Gradio workflows!</p>
+  </div>
+</h3>
+
 
 `daggr` is a Python package for building resilient AI workflows that connect Gradio apps, ML models via inference providers, and custom functions.
 
