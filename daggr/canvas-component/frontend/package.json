@@ -9,24 +9,17 @@
   "dependencies": {
     "@gradio/atoms": "0.20.0",
     "@gradio/client": "2.0.2",
-    "@gradio/gallery": "0.16.1",
     "@gradio/icons": "0.15.0",
-    "@gradio/markdown-code": "0.6.0",
-    "@gradio/plot": "0.10.1",
     "@gradio/statustracker": "0.12.1",
     "@gradio/theme": "0.6.0",
     "@gradio/upload": "0.17.3",
     "@gradio/utils": "0.11.1",
     "@types/katex": "^0.16.7",
     "@types/prismjs": "1.26.5",
-    "dequal": "^2.0.3",
-    "svelvet": "^11.0.5"
+    "dequal": "^2.0.3"
   },
   "devDependencies": {
-    "@gradio/audio": "0.22.0",
-    "@gradio/image": "0.25.0",
-    "@gradio/preview": "0.15.1",
-    "@gradio/video": "0.20.0"
+    "@gradio/preview": "^0.15.2"
   },
   "main_changeset": true,
   "main": "./Index.svelte",

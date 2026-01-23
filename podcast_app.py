@@ -9,6 +9,7 @@ host_voice = GradioNode(
         "voice_description": gr.Textbox(
             label="Host Voice Description",
             value="Deep British voice that is very professional and authoritative...",
+            lines=3,
         ),
         "language": "auto",
         "text": "Hi! I'm the host of podcast. It's going to be a great episode!",
@@ -27,12 +28,13 @@ guest_voice = GradioNode(
         "voice_description": gr.Textbox(
             label="Guest Voice Description",
             value="Energetic, friendly young voice with American accent...",
+            lines=3,
         ),
         "language": "auto",
         "text": "Hi! I'm the guest of podcast. Super excited to be here!",
     },
     outputs={
-        "audio": gr.Audio(label="Host Voice"),
+        "audio": gr.Audio(label="Gues Voice"),
         "status": gr.Text(visible=False),
     },
 )

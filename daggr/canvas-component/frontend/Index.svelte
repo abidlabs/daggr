@@ -2,12 +2,19 @@
 	import { Block } from "@gradio/atoms";
 	import { StatusTracker } from "@gradio/statustracker";
 	import { Gradio } from "@gradio/utils";
-	import { onMount } from "svelte";
 
 	// Types
 	interface Port {
 		name: string;
 		history_count?: number;
+	}
+
+	interface GradioComponentData {
+		component: string;
+		type: string;
+		port_name: string;
+		props: Record<string, any>;
+		value?: any;
 	}
 
 	interface GraphNode {
@@ -16,6 +23,8 @@
 		type: string;
 		inputs: Port[];
 		outputs: string[];
+		input_components?: GradioComponentData[];
+		output_components?: GradioComponentData[];
 		x: number;
 		y: number;
 		status: string;
@@ -35,6 +44,7 @@
 		name: string;
 		nodes: GraphNode[];
 		edges: GraphEdge[];
+		inputs?: Record<string, Record<string, string>>;
 		run_to_node?: string;
 	}
 
@@ -62,6 +72,30 @@
 	let nodes = $derived(gradio.props.value?.nodes || []);
 	let edges = $derived(gradio.props.value?.edges || []);
 
+	// Track input component values (keyed by node.id for correct data flow)
+	let inputValues = $state<Record<string, Record<string, any>>>({});
+
+	function handleInputChange(nodeId: string, portName: string, value: any) {
+		if (!inputValues[nodeId]) {
+			inputValues[nodeId] = {};
+		}
+		inputValues[nodeId][portName] = value;
+	}
+
+	function getComponentValue(node: GraphNode, comp: GradioComponentData): any {
+		return inputValues[node.id]?.[comp.port_name] ?? comp.value ?? '';
+	}
+
+	function getComponentsToRender(node: GraphNode): GradioComponentData[] {
+		if (node.is_input_node && node.input_components?.length) {
+			return node.input_components;
+		}
+		if (node.output_components?.length) {
+			return node.output_components;
+		}
+		return [];
+	}
+
 	// Node layout constants - MUST match CSS exactly
 	const NODE_WIDTH = 220;
 	const NODE_HEIGHT_BASE = 100;
@@ -69,12 +103,14 @@
 	const HEADER_BORDER = 1;
 	const BODY_PADDING_TOP = 8;
 	const PORT_ROW_HEIGHT = 22;
-	const STATUS_HEIGHT = 26;
+	const EMBEDDED_COMPONENT_HEIGHT = 60;
 
 	// Calculate node height
 	function getNodeHeight(node: GraphNode): number {
 		const portRows = Math.max(node.inputs.length, node.outputs.length, 1);
-		return HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + (portRows * PORT_ROW_HEIGHT) + BODY_PADDING_TOP + STATUS_HEIGHT;
+		const componentsToRender = getComponentsToRender(node);
+		const embeddedHeight = componentsToRender.length * EMBEDDED_COMPONENT_HEIGHT;
+		return HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + (portRows * PORT_ROW_HEIGHT) + embeddedHeight + BODY_PADDING_TOP;
 	}
 
 	// Build lookup map
@@ -199,6 +235,7 @@
 		if (gradio.props.value) {
 			gradio.props.value = {
 				...gradio.props.value,
+				inputs: { ...gradio.props.value.inputs, ...inputValues },
 				run_to_node: nodeName
 			};
 		}
@@ -214,21 +251,6 @@
 		};
 		return `background: ${colors[type] || '#666'};`;
 	}
-
-	function getStatusStyles(status: string): { dot: string; text: string; glow: string } {
-		const styles: Record<string, { dot: string; text: string; glow: string }> = {
-			'pending': { dot: '#444', text: '#666', glow: 'none' },
-			'running': { dot: '#f97316', text: '#fb923c', glow: '0 0 8px rgba(249, 115, 22, 0.7)' },
-			'completed': { dot: '#22c55e', text: '#4ade80', glow: '0 0 8px rgba(34, 197, 94, 0.6)' },
-			'error': { dot: '#ef4444', text: '#f87171', glow: '0 0 8px rgba(239, 68, 68, 0.6)' },
-		};
-		return styles[status] || styles['pending'];
-	}
-
-	// Zoom to fit on mount
-	onMount(() => {
-		setTimeout(zoomToFit, 100);
-	});
 
 	// Zoom percentage display
 	let zoomPercent = $derived(Math.round(transform.scale * 100));
@@ -271,9 +293,16 @@
 			class="canvas-transform"
 			style="transform: translate({transform.x}px, {transform.y}px) scale({transform.scale})"
 		>
+			<!-- Edges SVG (rendered first so it's behind nodes) -->
+			<svg class="edges-svg">
+				{#each edgePaths as edge (edge.id)}
+					<path d={edge.d} class="edge-path" />
+				{/each}
+			</svg>
+
 			<!-- Nodes -->
 			{#each nodes as node (node.id)}
-				{@const status = getStatusStyles(node.status)}
+				{@const componentsToRender = getComponentsToRender(node)}
 				<div 
 					class="node"
 					style="left: {node.x}px; top: {node.y}px; width: {NODE_WIDTH}px;"
@@ -282,14 +311,13 @@
 						<span class="type-badge" style={getBadgeStyle(node.type)}>{node.type}</span>
 						<span class="node-name">{node.name}</span>
 						{#if !node.is_input_node}
-							<button 
+							<span 
 								class="run-btn"
-								class:run-btn-primary={node.is_output_node}
 								onclick={(e) => handleRunToNode(e, node.name)}
 								title="Run to here"
-							>
-								<svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
-							</button>
+								role="button"
+								tabindex="0"
+							>▶</span>
 						{/if}
 					</div>
 
@@ -312,19 +340,96 @@
 						</div>
 					</div>
 
-					<div class="node-footer">
-						<span class="status-dot" style="background: {status.dot}; box-shadow: {status.glow};"></span>
-						<span class="status-label" style="color: {status.text};">{node.status}</span>
-					</div>
+					{#if componentsToRender.length > 0}
+						<div class="embedded-components">
+							{#each componentsToRender as comp (comp.port_name)}
+								<div class="embedded-component">
+									{#if comp.component === 'textbox' || comp.component === 'text'}
+										<div class="gr-textbox-wrap">
+											<span class="gr-label">{comp.props?.label || comp.port_name}</span>
+											{#if comp.props?.lines && comp.props.lines > 1}
+												<textarea
+													class="gr-input"
+													placeholder={comp.props?.placeholder || ''}
+													rows={comp.props?.lines || 3}
+													disabled={!node.is_input_node}
+													value={getComponentValue(node, comp)}
+													oninput={(e) => handleInputChange(node.id, comp.port_name, (e.target as HTMLTextAreaElement).value)}
+												></textarea>
+											{:else}
+												<input
+													type="text"
+													class="gr-input"
+													placeholder={comp.props?.placeholder || ''}
+													disabled={!node.is_input_node}
+													value={getComponentValue(node, comp)}
+													oninput={(e) => handleInputChange(node.id, comp.port_name, (e.target as HTMLInputElement).value)}
+												/>
+											{/if}
+										</div>
+									{:else if comp.component === 'number'}
+										<div class="gr-textbox-wrap">
+											<span class="gr-label">{comp.props?.label || comp.port_name}</span>
+											<input
+												type="number"
+												class="gr-input"
+												disabled={!node.is_input_node}
+												value={getComponentValue(node, comp)}
+												oninput={(e) => handleInputChange(node.id, comp.port_name, parseFloat((e.target as HTMLInputElement).value))}
+											/>
+										</div>
+									{:else if comp.component === 'checkbox'}
+										<label class="gr-checkbox-wrap">
+											<input
+												type="checkbox"
+												disabled={!node.is_input_node}
+												checked={getComponentValue(node, comp)}
+												onchange={(e) => handleInputChange(node.id, comp.port_name, (e.target as HTMLInputElement).checked)}
+											/>
+											<span class="gr-check-label">{comp.props?.label || comp.port_name}</span>
+										</label>
+									{:else if comp.component === 'markdown'}
+										<div class="gr-textbox-wrap">
+											<span class="gr-label">{comp.props?.label || comp.port_name}</span>
+											<div class="gr-markdown">{@html comp.value || ''}</div>
+										</div>
+									{:else if comp.component === 'json'}
+										<div class="gr-textbox-wrap">
+											<span class="gr-label">{comp.props?.label || comp.port_name}</span>
+											<pre class="gr-json">{typeof comp.value === 'string' ? comp.value : JSON.stringify(comp.value, null, 2)}</pre>
+										</div>
+									{:else if comp.component === 'audio'}
+										<div class="gr-textbox-wrap">
+											<span class="gr-label">{comp.props?.label || comp.port_name}</span>
+											{#if comp.value}
+												<audio controls class="gr-audio" src={comp.value?.url || comp.value}></audio>
+											{:else}
+												<div class="gr-empty">No audio</div>
+											{/if}
+										</div>
+									{:else if comp.component === 'image'}
+										<div class="gr-textbox-wrap">
+											<span class="gr-label">{comp.props?.label || comp.port_name}</span>
+											{#if comp.value}
+												<img class="gr-image" src={comp.value?.url || comp.value} alt={comp.props?.label || ''} />
+											{:else}
+												<div class="gr-empty">No image</div>
+											{/if}
+										</div>
+									{:else}
+										<div class="gr-fallback">
+											<span class="fallback-type">{comp.component}</span>
+											{#if comp.value}
+												<pre>{typeof comp.value === 'string' ? comp.value : JSON.stringify(comp.value, null, 2)}</pre>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			{/each}
-
-			<!-- Edges SVG -->
-			<svg class="edges-svg">
-				{#each edgePaths as edge (edge.id)}
-					<path d={edge.d} class="edge-path" />
-				{/each}
-			</svg>
 		</div>
 
 		<!-- Zoom Controls -->
@@ -429,7 +534,6 @@
 		height: 3000px;
 		pointer-events: none;
 		overflow: visible;
-		transform: translateY(-8px);
 	}
 
 	.edge-path {
@@ -442,7 +546,7 @@
 	/* Node */
 	.node {
 		position: absolute;
-		background: linear-gradient(175deg, #181818 0%, #121212 100%);
+		background: linear-gradient(175deg, rgba(24, 24, 24, 0.92) 0%, rgba(18, 18, 18, 0.92) 100%);
 		border: 1px solid rgba(249, 115, 22, 0.2);
 		border-radius: 10px;
 		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
@@ -464,7 +568,7 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		padding: 3px 8px !important;
+		padding: 3px 8px;
 		border-radius: 4px;
 		color: #fff;
 		flex-shrink: 0;
@@ -481,33 +585,19 @@
 	}
 
 	.run-btn {
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		border: 1.5px solid #f97316;
-		background: transparent;
+		font-size: 10px;
+		color: #f97316;
 		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0;
-		flex-shrink: 0;
+		padding: 2px 6px;
+		border-radius: 4px;
+		border: 1px solid #f97316;
+		background: transparent;
+		user-select: none;
+		transition: all 0.15s;
 	}
 
-	.run-btn svg {
-		width: 8px;
-		height: 8px;
-		fill: #f97316;
-	}
-
-	.run-btn-primary {
-		background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-		border: none;
-		box-shadow: 0 2px 8px rgba(249, 115, 22, 0.4);
-	}
-
-	.run-btn-primary svg {
-		fill: #fff;
+	.run-btn:hover {
+		background: rgba(249, 115, 22, 0.2);
 	}
 
 	.node-body {
@@ -559,25 +649,153 @@
 		font-family: 'SF Mono', Monaco, monospace;
 	}
 
-	.node-footer {
+	.embedded-components {
+		padding: 8px 10px;
+		border-top: 1px solid rgba(249, 115, 22, 0.08);
+		max-height: 200px;
+		overflow-y: auto;
+	}
+
+	.embedded-component {
+		margin-bottom: 8px;
+	}
+
+	.embedded-component:last-child {
+		margin-bottom: 0;
+	}
+
+	.gr-textbox-wrap {
+		background: #1a1a1a;
+		border: 1px solid #333;
+		border-radius: 6px;
+		overflow: hidden;
+	}
+
+	.gr-label {
+		display: block;
+		font-size: 10px;
+		font-weight: 400;
+		color: #888;
+		padding: 6px 10px 0;
+	}
+
+	.gr-input {
+		width: 100%;
+		padding: 4px 10px 8px;
+		font-size: 11px;
+		font-family: inherit;
+		color: #e5e7eb;
+		background: transparent;
+		border: none;
+		outline: none;
+		box-sizing: border-box;
+	}
+
+	.gr-input::placeholder {
+		color: #555;
+	}
+
+	.gr-textbox-wrap:focus-within {
+		border-color: #f97316;
+	}
+
+	.gr-input:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
+	}
+
+	textarea.gr-input {
+		resize: none;
+		min-height: 36px;
+		line-height: 1.4;
+	}
+
+	.gr-checkbox-wrap {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		height: 26px;
-		padding: 0 10px;
-		border-top: 1px solid rgba(249, 115, 22, 0.08);
+		gap: 8px;
+		cursor: pointer;
+		padding: 6px 0;
 	}
 
-	.status-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
+	.gr-checkbox-wrap input[type="checkbox"] {
+		width: 14px;
+		height: 14px;
+		accent-color: #f97316;
+		cursor: pointer;
 	}
 
-	.status-label {
-		font-size: 8px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
+	.gr-check-label {
+		font-size: 11px;
+		color: #e5e7eb;
+	}
+
+	.gr-markdown {
+		font-size: 11px;
+		color: #d1d5db;
+		line-height: 1.4;
+		padding: 6px 10px 8px;
+		max-height: 100px;
+		overflow: auto;
+	}
+
+	.gr-json {
+		font-size: 10px;
+		font-family: 'SF Mono', Monaco, Consolas, monospace;
+		color: #9ca3af;
+		padding: 6px 10px 8px;
+		max-height: 100px;
+		overflow: auto;
+		margin: 0;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+
+	.gr-audio {
+		width: 100%;
+		height: 32px;
+	}
+
+	.gr-image {
+		width: 100%;
+		max-height: 80px;
+		object-fit: contain;
+	}
+
+	.gr-empty {
+		font-size: 11px;
+		color: #555;
+		font-style: italic;
+		padding: 10px;
+		text-align: center;
+	}
+
+	.gr-fallback {
+		font-size: 10px;
+		color: #9ca3af;
+		background: #1a1a1a;
+		border: 1px solid #333;
+		padding: 8px 10px;
+		border-radius: 6px;
+	}
+
+	.gr-fallback .fallback-type {
+		display: inline-block;
+		color: #666;
+		font-style: italic;
+		font-size: 9px;
+		background: #2a2a2a;
+		padding: 2px 6px;
+		border-radius: 4px;
+		margin-bottom: 4px;
+	}
+
+	.gr-fallback pre {
+		margin: 0;
+		font-size: 9px;
+		white-space: pre-wrap;
+		word-break: break-all;
+		max-height: 60px;
+		overflow: auto;
 	}
 </style>

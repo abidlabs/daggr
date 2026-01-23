@@ -24,7 +24,7 @@ importers:
         specifier: ^2.2.1
         version: 2.2.2
 
-  trackio: {}
+  daggr: {}
 
 packages:
 

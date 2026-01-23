@@ -13,1097 +13,6 @@ if TYPE_CHECKING:
     from daggr.graph import Graph
 
 
-class WorkflowCanvas(gr.HTML):
-    """Legacy HTML-based canvas - kept for reference."""
-
-    def __init__(self, graph_data: dict | None = None, **kwargs):
-        html_template = """
-        <div class="workflow-container">
-            <div class="workflow-canvas" id="workflow-canvas">
-                {{#each value.nodes}}
-                <div class="node node-{{this.type}}" 
-                     id="node-{{this.id}}" 
-                     style="left: {{this.x}}px; top: {{this.y}}px;"
-                     data-node-id="{{this.id}}"
-                     data-node-name="{{this.name}}"
-                     data-node-type="{{this.type}}">
-                    <div class="node-header">
-                        <span class="node-type-badge">{{this.type}}</span>
-                        <span class="node-title">{{this.name}}</span>
-                        {{#unless this.is_input_node}}
-                        <button class="node-play-btn {{#if this.is_output_node}}node-play-btn-primary{{/if}}" data-node="{{this.name}}" title="Run to here">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="6,4 20,12 6,20"/>
-                            </svg>
-                        </button>
-                        {{/unless}}
-                    </div>
-                    <div class="node-body">
-                        <div class="node-ports">
-                            <div class="input-ports">
-                                {{#each this.inputs}}
-                                <div class="port input-port" data-port="{{this.name}}" data-node="{{../id}}" data-history-count="{{this.history_count}}">
-                                    <span class="port-dot"></span>
-                                    <span class="port-label">{{this.name}}</span>
-                                    {{#if this.history_count}}
-                                    <button class="history-btn" data-node="{{../name}}" data-port="{{this.name}}" title="View history">
-                                        <span class="history-count">{{this.history_count}}</span>
-                                        📂
-                                    </button>
-                                    {{/if}}
-                                </div>
-                                {{/each}}
-                            </div>
-                            <div class="output-ports">
-                                {{#each this.outputs}}
-                                <div class="port output-port" data-port="{{this}}" data-node="{{../id}}">
-                                    <span class="port-label">{{this}}</span>
-                                    <span class="port-dot"></span>
-                                </div>
-                                {{/each}}
-                            </div>
-                        </div>
-                        {{#if this.input_components}}
-                        <div class="node-input-area">
-                            {{#each this.input_components}}
-                            <div class="input-component" data-component-type="{{this.type}}" data-port="{{this.label}}">
-                                {{#if this.is_textbox}}
-                                <label class="input-label">{{this.label}}</label>
-                                <input type="text" class="node-text-input" 
-                                       data-node="{{../name}}" 
-                                       data-port="{{this.label}}"
-                                       placeholder="{{this.placeholder}}"
-                                       value="{{this.value}}">
-                                {{/if}}
-                                {{#if this.is_textarea}}
-                                <label class="input-label">{{this.label}}</label>
-                                <textarea class="node-textarea-input" 
-                                          data-node="{{../name}}" 
-                                          data-port="{{this.label}}"
-                                          placeholder="{{this.placeholder}}">{{this.value}}</textarea>
-                                {{/if}}
-                            </div>
-                            {{/each}}
-                        </div>
-                        {{/if}}
-                        {{#if this.has_input}}
-                        <div class="node-input-area">
-                            <input type="text" class="node-text-input" 
-                                   data-node="{{this.name}}" 
-                                   placeholder="Enter value..."
-                                   value="{{this.input_value}}">
-                        </div>
-                        {{/if}}
-                    </div>
-                    {{#if this.output_components}}
-                    <div class="node-outputs">
-                        {{#each this.output_components}}
-                        <div class="output-component" data-component-type="{{this.type}}">
-                            {{#if this.is_audio}}
-                            <div class="audio-player">
-                                <span class="audio-label">{{this.label}}</span>
-                                {{#if this.value}}
-                                <audio controls src="{{this.value}}"></audio>
-                                {{else}}
-                                <div class="audio-placeholder">No audio generated</div>
-                                {{/if}}
-                            </div>
-                            {{/if}}
-                            {{#if this.is_json}}
-                            <div class="json-display">
-                                <span class="json-label">{{this.label}}</span>
-                                <pre class="json-content">{{this.value}}</pre>
-                            </div>
-                            {{/if}}
-                            {{#if this.is_text}}
-                            <div class="text-display">
-                                <span class="text-label">{{this.label}}</span>
-                                <div class="text-content">{{this.value}}</div>
-                            </div>
-                            {{/if}}
-                        </div>
-                        {{/each}}
-                    </div>
-                    {{/if}}
-                    {{#if this.is_map_node}}
-                    <div class="map-node-items" data-node="{{this.name}}" data-expanded="false">
-                        <div class="map-header" onclick="toggleMapExpand(this)">
-                            <span class="map-count">[{{this.map_item_count}} items]</span>
-                            <span class="map-toggle">▼ Expand</span>
-                        </div>
-                        <div class="map-items-list">
-                            {{#each this.map_items}}
-                            <div class="map-item" data-index="{{this.index}}">
-                                <div class="map-item-header">
-                                    <span class="map-item-index">{{this.index}}.</span>
-                                    <span class="map-item-preview">{{this.preview}}</span>
-                                    <button class="map-item-rerun" data-node="{{../name}}" data-index="{{this.index}}" title="Re-run this item">🔄</button>
-                                </div>
-                                {{#if this.output}}
-                                <div class="map-item-output">
-                                    {{#if this.is_audio_output}}
-                                    <audio controls src="{{this.output}}"></audio>
-                                    {{else}}
-                                    <pre>{{this.output}}</pre>
-                                    {{/if}}
-                                </div>
-                                {{/if}}
-                            </div>
-                            {{/each}}
-                        </div>
-                    </div>
-                    {{/if}}
-                    <div class="node-status" data-status="{{this.status}}">
-                        <span class="status-indicator"></span>
-                        <span class="status-text">{{this.status}}</span>
-                    </div>
-                    {{#if this.result}}
-                    <div class="node-result">
-                        <pre>{{this.result}}</pre>
-                    </div>
-                    {{/if}}
-                </div>
-                {{/each}}
-            </div>
-            <svg class="workflow-edges" id="workflow-edges">
-                {{#each value.edges}}
-                <g class="edge-group" data-edge-id="{{this.id}}">
-                    <path class="edge" 
-                          data-from="{{this.from_node}}" 
-                          data-from-port="{{this.from_port}}"
-                          data-to="{{this.to_node}}" 
-                          data-to-port="{{this.to_port}}"
-                          d=""/>
-                </g>
-                {{/each}}
-            </svg>
-            <div class="history-modal" id="history-modal" style="display:none;">
-                <div class="history-modal-backdrop"></div>
-                <div class="history-modal-content">
-                    <div class="history-modal-header">
-                        <span class="history-modal-title">Select version</span>
-                        <button class="history-modal-close">✕</button>
-                    </div>
-                    <div class="history-modal-body">
-                    </div>
-                    <div class="history-modal-footer">
-                        <button class="history-use-btn">Use Selected</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-        css_template = """
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-        
-        .workflow-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: 
-                radial-gradient(ellipse at 20% 20%, rgba(249, 115, 22, 0.06) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, rgba(251, 146, 60, 0.05) 0%, transparent 50%),
-                radial-gradient(ellipse at 50% 50%, rgba(234, 88, 12, 0.03) 0%, transparent 70%),
-                linear-gradient(180deg, #0a0a0a 0%, #0f0f0f 50%, #0a0a0a 100%);
-            border-radius: 0;
-            overflow: auto;
-            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-            border: none;
-        }
-        
-        .workflow-canvas {
-            position: absolute;
-            width: 3000px;
-            height: 2000px;
-            background-image: 
-                radial-gradient(circle at center, rgba(249, 115, 22, 0.015) 0%, transparent 2px),
-                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-            background-size: 40px 40px, 20px 20px, 20px 20px;
-        }
-        
-        .workflow-edges {
-            position: absolute;
-            width: 3000px;
-            height: 2000px;
-            pointer-events: none;
-            z-index: 5;
-        }
-        
-        .edge-group {
-            pointer-events: auto;
-        }
-        
-        .edge {
-            fill: none;
-            stroke: #f97316;
-            stroke-width: 3;
-            stroke-linecap: round;
-            filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.5));
-            transition: stroke-width 0.2s, opacity 0.2s;
-            opacity: 0.85;
-        }
-        
-        .edge-group:hover .edge {
-            stroke-width: 4;
-            opacity: 1;
-        }
-        
-        .node {
-            position: absolute;
-            min-width: 280px;
-            max-width: 360px;
-            background: linear-gradient(165deg, rgba(20, 20, 20, 0.98) 0%, rgba(10, 10, 10, 0.99) 100%);
-            border: 1px solid rgba(249, 115, 22, 0.25);
-            border-radius: 16px;
-            box-shadow: 
-                0 8px 32px rgba(0, 0, 0, 0.6),
-                0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-                0 0 60px -20px rgba(249, 115, 22, 0.1);
-            z-index: 10;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            backdrop-filter: blur(20px);
-        }
-        
-        .node:hover {
-            box-shadow: 
-                0 16px 48px rgba(0, 0, 0, 0.7),
-                0 0 0 1px rgba(249, 115, 22, 0.5) inset,
-                0 0 80px -20px rgba(249, 115, 22, 0.25);
-            border-color: rgba(249, 115, 22, 0.6);
-            transform: translateY(-3px);
-        }
-        
-        .node-header {
-            padding: 14px 16px;
-            background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(234, 88, 12, 0.08) 100%);
-            border-radius: 15px 15px 0 0;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border-bottom: 1px solid rgba(249, 115, 22, 0.15);
-        }
-        
-        .node-play-btn {
-            margin-left: auto;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            border: 2px solid #f97316;
-            background: rgba(249, 115, 22, 0.15);
-            color: #f97316;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-            padding: 0;
-        }
-        
-        .node-play-btn svg {
-            width: 12px;
-            height: 12px;
-            margin-left: 2px;
-            fill: #f97316;
-        }
-        
-        .node-play-btn:hover {
-            background: rgba(249, 115, 22, 0.3);
-            border-color: #fb923c;
-            transform: scale(1.1);
-        }
-        
-        .node-play-btn:hover svg {
-            fill: #fb923c;
-        }
-        
-        .node-play-btn-primary {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-            border: none;
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
-        }
-        
-        .node-play-btn-primary svg {
-            width: 14px;
-            height: 14px;
-            fill: #fff;
-        }
-        
-        .node-play-btn-primary:hover {
-            background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
-            transform: scale(1.15);
-            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.6);
-        }
-        
-        .node-play-btn-primary:hover svg {
-            fill: #fff;
-        }
-        
-        .node-type-badge {
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 5px 10px;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-            color: #ffffff;
-            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
-            font-family: 'JetBrains Mono', monospace;
-        }
-        
-        .node-FN .node-type-badge { 
-            background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
-            box-shadow: 0 4px 12px rgba(251, 146, 60, 0.4);
-        }
-        .node-GRADIO .node-type-badge { 
-            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
-        }
-        .node-MODEL .node-type-badge { 
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-        }
-        .node-MAP .node-type-badge {
-            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
-        }
-        .node-INPUT .node-type-badge {
-            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4);
-        }
-        .node-ACTION .node-type-badge,
-        .node-SELECT .node-type-badge,
-        .node-IMAGE .node-type-badge,
-        .node-APPROVE .node-type-badge { 
-            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-            color: #000000;
-            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
-        }
-        
-        .node-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #ffffff;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            letter-spacing: 0.3px;
-        }
-        
-        .node-body {
-            padding: 16px;
-        }
-        
-        .node-ports {
-            display: flex;
-            justify-content: space-between;
-            gap: 24px;
-        }
-        
-        .input-ports, .output-ports {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .output-ports {
-            align-items: flex-end;
-        }
-        
-        .port {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 4px 0;
-            transition: all 0.2s ease;
-        }
-        
-        .port:hover {
-            transform: translateX(2px);
-        }
-        
-        .output-port:hover {
-            transform: translateX(-2px);
-        }
-        
-        .port-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: rgba(30, 30, 30, 0.9);
-            border: 2px solid rgba(249, 115, 22, 0.4);
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
-            flex-shrink: 0;
-        }
-        
-        .input-port .port-dot { 
-            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-            border-color: #f97316;
-            box-shadow: 0 0 16px rgba(249, 115, 22, 0.5);
-        }
-        .output-port .port-dot { 
-            background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
-            border-color: #fb923c;
-            box-shadow: 0 0 16px rgba(251, 146, 60, 0.5);
-        }
-        
-        .port:hover .port-dot {
-            transform: scale(1.3);
-            box-shadow: 0 0 20px rgba(249, 115, 22, 0.7);
-        }
-        
-        .port-label {
-            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.4px;
-            color: #e5e5e5;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-        }
-        
-        .history-btn {
-            background: rgba(249, 115, 22, 0.2);
-            border: 1px solid rgba(249, 115, 22, 0.4);
-            border-radius: 6px;
-            padding: 2px 6px;
-            font-size: 10px;
-            color: #fb923c;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.2s;
-        }
-        
-        .history-btn:hover {
-            background: rgba(249, 115, 22, 0.4);
-            border-color: #f97316;
-        }
-        
-        .history-count {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 600;
-        }
-        
-        .node-input-area {
-            margin-top: 14px;
-            padding-top: 14px;
-            border-top: 1px solid rgba(249, 115, 22, 0.15);
-        }
-        
-        .input-component {
-            margin-bottom: 12px;
-        }
-        
-        .input-label {
-            display: block;
-            font-size: 11px;
-            font-weight: 600;
-            color: #a3a3a3;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .node-text-input, .node-textarea-input {
-            width: 100%;
-            padding: 12px 14px;
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(249, 115, 22, 0.3);
-            border-radius: 10px;
-            color: #ffffff;
-            font-size: 13px;
-            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
-            box-sizing: border-box;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .node-textarea-input {
-            min-height: 80px;
-            resize: vertical;
-        }
-        
-        .node-text-input::placeholder, .node-textarea-input::placeholder {
-            color: rgba(180, 180, 180, 0.5);
-        }
-        
-        .node-text-input:focus, .node-textarea-input:focus {
-            outline: none;
-            border-color: #f97316;
-            box-shadow: 
-                0 0 0 4px rgba(249, 115, 22, 0.15),
-                0 0 30px rgba(249, 115, 22, 0.2);
-            background: rgba(0, 0, 0, 0.8);
-        }
-        
-        .node-outputs {
-            padding: 12px 16px;
-            border-top: 1px solid rgba(249, 115, 22, 0.1);
-            background: rgba(0, 0, 0, 0.3);
-        }
-        
-        .output-component {
-            margin-bottom: 10px;
-        }
-        
-        .output-component:last-child {
-            margin-bottom: 0;
-        }
-        
-        .audio-player {
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 8px;
-            padding: 10px;
-        }
-        
-        .audio-label, .json-label, .text-label {
-            display: block;
-            font-size: 10px;
-            font-weight: 600;
-            color: #a3a3a3;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .audio-player audio {
-            width: 100%;
-            height: 36px;
-        }
-        
-        .audio-placeholder {
-            color: #666;
-            font-size: 12px;
-            font-style: italic;
-            padding: 8px;
-            text-align: center;
-        }
-        
-        .json-display, .text-display {
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 8px;
-            padding: 10px;
-        }
-        
-        .json-content, .text-content {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            color: #4ade80;
-            white-space: pre-wrap;
-            word-break: break-word;
-            max-height: 120px;
-            overflow-y: auto;
-        }
-        
-        .map-node-items {
-            border-top: 1px solid rgba(139, 92, 246, 0.2);
-            background: rgba(139, 92, 246, 0.05);
-        }
-        
-        .map-header {
-            padding: 10px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .map-header:hover {
-            background: rgba(139, 92, 246, 0.1);
-        }
-        
-        .map-count {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: #a78bfa;
-            font-weight: 600;
-        }
-        
-        .map-toggle {
-            font-size: 11px;
-            color: #8b5cf6;
-        }
-        
-        .map-items-list {
-            display: none;
-            max-height: 300px;
-            overflow-y: auto;
-            padding: 0 16px 16px;
-        }
-        
-        .map-node-items[data-expanded="true"] .map-items-list {
-            display: block;
-        }
-        
-        .map-node-items[data-expanded="true"] .map-toggle {
-            transform: rotate(180deg);
-        }
-        
-        .map-item {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            border-radius: 8px;
-            margin-bottom: 8px;
-            overflow: hidden;
-        }
-        
-        .map-item:last-child {
-            margin-bottom: 0;
-        }
-        
-        .map-item-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            background: rgba(139, 92, 246, 0.1);
-        }
-        
-        .map-item-index {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            color: #a78bfa;
-            font-weight: 600;
-        }
-        
-        .map-item-preview {
-            flex: 1;
-            font-size: 11px;
-            color: #d4d4d4;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .map-item-rerun {
-            background: rgba(139, 92, 246, 0.2);
-            border: 1px solid rgba(139, 92, 246, 0.4);
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .map-item-rerun:hover {
-            background: rgba(139, 92, 246, 0.4);
-        }
-        
-        .map-item-output {
-            padding: 8px 10px;
-        }
-        
-        .map-item-output audio {
-            width: 100%;
-            height: 32px;
-        }
-        
-        .map-item-output pre {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            color: #4ade80;
-            margin: 0;
-        }
-        
-        .node-status {
-            padding: 12px 16px;
-            border-top: 1px solid rgba(249, 115, 22, 0.1);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            font-weight: 600;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        
-        .status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: rgba(80, 80, 80, 0.5);
-            transition: all 0.3s ease;
-        }
-        
-        .node-status[data-status="pending"] .status-indicator { 
-            background: rgba(120, 120, 120, 0.5);
-            box-shadow: 0 0 8px rgba(120, 120, 120, 0.3);
-        }
-        .node-status[data-status="pending"] .status-text { 
-            color: rgba(180, 180, 180, 0.8);
-        }
-        
-        .node-status[data-status="running"] .status-indicator { 
-            background: #f97316;
-            box-shadow: 0 0 16px rgba(249, 115, 22, 0.7);
-            animation: pulse 1s ease-in-out infinite;
-        }
-        .node-status[data-status="running"] .status-text { 
-            color: #fb923c;
-        }
-        
-        .node-status[data-status="completed"] .status-indicator { 
-            background: #22c55e;
-            box-shadow: 0 0 16px rgba(34, 197, 94, 0.6);
-        }
-        .node-status[data-status="completed"] .status-text { 
-            color: #4ade80;
-        }
-        
-        .node-status[data-status="error"] .status-indicator { 
-            background: #ef4444;
-            box-shadow: 0 0 16px rgba(239, 68, 68, 0.6);
-        }
-        .node-status[data-status="error"] .status-text { 
-            color: #f87171;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.4); }
-        }
-        
-        .node-result {
-            padding: 12px 16px;
-            border-top: 1px solid rgba(249, 115, 22, 0.1);
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 0 0 15px 15px;
-            max-height: 140px;
-            overflow-y: auto;
-        }
-        
-        .node-result::-webkit-scrollbar {
-            width: 6px;
-        }
-        .node-result::-webkit-scrollbar-track {
-            background: rgba(20, 20, 20, 0.5);
-            border-radius: 3px;
-        }
-        .node-result::-webkit-scrollbar-thumb {
-            background: rgba(249, 115, 22, 0.4);
-            border-radius: 3px;
-        }
-        
-        .node-result pre {
-            margin: 0;
-            font-size: 11px;
-            color: #4ade80;
-            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
-            white-space: pre-wrap;
-            word-break: break-word;
-            line-height: 1.6;
-            text-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
-        }
-        
-        .history-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1000;
-        }
-        
-        .history-modal-backdrop {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(4px);
-        }
-        
-        .history-modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 500px;
-            max-width: 90vw;
-            max-height: 80vh;
-            background: linear-gradient(165deg, rgba(30, 30, 30, 0.98) 0%, rgba(15, 15, 15, 0.99) 100%);
-            border: 1px solid rgba(249, 115, 22, 0.3);
-            border-radius: 16px;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .history-modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid rgba(249, 115, 22, 0.2);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .history-modal-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #fff;
-        }
-        
-        .history-modal-close {
-            background: none;
-            border: none;
-            color: #888;
-            font-size: 18px;
-            cursor: pointer;
-            padding: 4px 8px;
-            transition: color 0.2s;
-        }
-        
-        .history-modal-close:hover {
-            color: #fff;
-        }
-        
-        .history-modal-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-        }
-        
-        .history-item {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(249, 115, 22, 0.2);
-            border-radius: 10px;
-            margin-bottom: 12px;
-            padding: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .history-item:hover {
-            border-color: rgba(249, 115, 22, 0.5);
-            background: rgba(249, 115, 22, 0.05);
-        }
-        
-        .history-item.selected {
-            border-color: #f97316;
-            background: rgba(249, 115, 22, 0.1);
-        }
-        
-        .history-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .history-item-version {
-            font-weight: 600;
-            color: #fb923c;
-        }
-        
-        .history-item-time {
-            font-size: 11px;
-            color: #888;
-        }
-        
-        .history-item-input {
-            font-size: 11px;
-            color: #a3a3a3;
-            margin-bottom: 8px;
-        }
-        
-        .history-item-preview {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 6px;
-            padding: 8px;
-        }
-        
-        .history-item-preview audio {
-            width: 100%;
-            height: 32px;
-        }
-        
-        .history-modal-footer {
-            padding: 16px 20px;
-            border-top: 1px solid rgba(249, 115, 22, 0.2);
-            display: flex;
-            justify-content: flex-end;
-        }
-        
-        .history-use-btn {
-            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-            border: none;
-            color: #fff;
-            padding: 10px 24px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .history-use-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(249, 115, 22, 0.4);
-        }
-        """
-
-        js_on_load = """
-        const container = element.querySelector('.workflow-container');
-        const canvas = element.querySelector('.workflow-canvas');
-        const svgEdges = element.querySelector('.workflow-edges');
-        const historyModal = element.querySelector('#history-modal');
-        
-        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        defs.innerHTML = `
-            <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#fb923c;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#fdba74;stop-opacity:1" />
-            </linearGradient>
-        `;
-        svgEdges.insertBefore(defs, svgEdges.firstChild);
-        
-        function getPortPosition(node, portEl, isOutput) {
-            if (portEl) {
-                const svgRect = svgEdges.getBoundingClientRect();
-                const portRect = portEl.getBoundingClientRect();
-                const x = portRect.left - svgRect.left + portRect.width / 2;
-                const y = portRect.top - svgRect.top + portRect.height / 2;
-                return { x, y };
-            }
-            
-            const nodeX = parseFloat(node.style.left) || 0;
-            const nodeY = parseFloat(node.style.top) || 0;
-            if (isOutput) {
-                return { x: nodeX + node.offsetWidth, y: nodeY + node.offsetHeight / 2 };
-            }
-            return { x: nodeX, y: nodeY + node.offsetHeight / 2 };
-        }
-        
-        function updateEdges() {
-            const edgeGroups = svgEdges.querySelectorAll('.edge-group');
-            edgeGroups.forEach(group => {
-                const edge = group.querySelector('.edge');
-                const fromNodeId = edge.dataset.from;
-                const fromPort = edge.dataset.fromPort;
-                const toNodeId = edge.dataset.to;
-                const toPort = edge.dataset.toPort;
-                
-                const fromNode = element.querySelector(`#node-${fromNodeId}`);
-                const toNode = element.querySelector(`#node-${toNodeId}`);
-                
-                if (!fromNode || !toNode) return;
-                
-                const fromPortEl = fromNode.querySelector(`.output-port[data-port="${fromPort}"] .port-dot`);
-                const toPortEl = toNode.querySelector(`.input-port[data-port="${toPort}"] .port-dot`);
-                
-                const from = getPortPosition(fromNode, fromPortEl, true);
-                const to = getPortPosition(toNode, toPortEl, false);
-                
-                const dx = Math.abs(to.x - from.x);
-                const controlOffset = Math.max(dx * 0.4, 60);
-                const path = `M ${from.x} ${from.y} C ${from.x + controlOffset} ${from.y}, ${to.x - controlOffset} ${to.y}, ${to.x} ${to.y}`;
-                edge.setAttribute('d', path);
-            });
-        }
-        
-        element.querySelectorAll('.node-text-input, .node-textarea-input').forEach(input => {
-            input.addEventListener('input', (e) => {
-                const nodeName = e.target.dataset.node;
-                const portName = e.target.dataset.port || nodeName;
-                if (!props.value.inputs) {
-                    props.value.inputs = {};
-                }
-                if (!props.value.inputs[nodeName]) {
-                    props.value.inputs[nodeName] = {};
-                }
-                props.value.inputs[nodeName][portName] = e.target.value;
-            });
-        });
-        
-        element.querySelectorAll('.node-play-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const nodeName = btn.dataset.node;
-                props.value.run_to_node = nodeName;
-                props.value = {...props.value};
-            });
-        });
-        
-        element.querySelectorAll('.history-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const nodeName = btn.dataset.node;
-                const portName = btn.dataset.port;
-                props.value.show_history = { node: nodeName, port: portName };
-                props.value = {...props.value};
-            });
-        });
-        
-        element.querySelectorAll('.map-item-rerun').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const nodeName = btn.dataset.node;
-                const index = parseInt(btn.dataset.index);
-                props.value.rerun_map_item = { node: nodeName, index: index };
-                props.value = {...props.value};
-            });
-        });
-        
-        window.toggleMapExpand = function(header) {
-            const mapItems = header.closest('.map-node-items');
-            const expanded = mapItems.dataset.expanded === 'true';
-            mapItems.dataset.expanded = !expanded;
-            header.querySelector('.map-toggle').textContent = expanded ? '▼ Expand' : '▲ Collapse';
-        };
-        
-        if (historyModal) {
-            historyModal.querySelector('.history-modal-backdrop').addEventListener('click', () => {
-                historyModal.style.display = 'none';
-            });
-            historyModal.querySelector('.history-modal-close').addEventListener('click', () => {
-                historyModal.style.display = 'none';
-            });
-        }
-        
-        setTimeout(updateEdges, 100);
-        setTimeout(updateEdges, 300);
-        setTimeout(updateEdges, 500);
-        setTimeout(updateEdges, 1000);
-        
-        window.addEventListener('load', () => setTimeout(updateEdges, 100));
-        
-        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(updateEdges));
-        resizeObserver.observe(container);
-        
-        container.addEventListener('scroll', () => requestAnimationFrame(updateEdges));
-        
-        const mutationObserver = new MutationObserver(() => requestAnimationFrame(updateEdges));
-        mutationObserver.observe(canvas, { childList: true, subtree: true });
-        """
-
-        super().__init__(
-            value=graph_data
-            or {
-                "nodes": [],
-                "edges": [],
-                "inputs": {},
-                "history": {},
-                "session_id": None,
-            },
-            html_template=html_template,
-            css_template=css_template,
-            js_on_load=js_on_load,
-            **kwargs,
-        )
-
-
 class UIGenerator:
     def __init__(self, graph: Graph):
         self.graph = graph
@@ -1176,27 +85,45 @@ class UIGenerator:
         }
         return type_map.get(class_name, "text")
 
+    def _serialize_gradio_component(self, comp, port_name: str) -> Dict[str, Any]:
+        comp_type = self._get_component_type(comp)
+        comp_class = comp.__class__.__name__
+
+        props = {
+            "label": getattr(comp, "label", "") or port_name,
+            "show_label": bool(getattr(comp, "label", "")),
+            "interactive": getattr(comp, "interactive", True),
+            "visible": getattr(comp, "visible", True),
+        }
+
+        if hasattr(comp, "placeholder"):
+            props["placeholder"] = comp.placeholder
+        if hasattr(comp, "lines"):
+            props["lines"] = comp.lines
+        if hasattr(comp, "max_lines"):
+            props["max_lines"] = comp.max_lines
+        if hasattr(comp, "type"):
+            props["type"] = comp.type
+        if hasattr(comp, "sources"):
+            props["sources"] = comp.sources
+        if hasattr(comp, "format"):
+            props["format"] = comp.format
+
+        return {
+            "component": comp_class.lower(),
+            "type": comp_type,
+            "port_name": port_name,
+            "props": props,
+            "value": getattr(comp, "value", None),
+        }
+
     def _build_input_components(self, node) -> List[Dict[str, Any]]:
         if not node._input_components:
             return []
 
         components = []
         for port_name, comp in node._input_components.items():
-            comp_type = self._get_component_type(comp)
-            label = getattr(comp, "label", "") or port_name
-            placeholder = getattr(comp, "placeholder", "") or ""
-            default_value = getattr(comp, "value", "") or ""
-            components.append(
-                {
-                    "type": comp_type,
-                    "label": label,
-                    "port_name": port_name,
-                    "placeholder": placeholder,
-                    "value": default_value,
-                    "is_textbox": comp_type == "textbox",
-                    "is_textarea": comp_type == "textarea",
-                }
-            )
+            components.append(self._serialize_gradio_component(comp, port_name))
         return components
 
     def _build_output_components(
@@ -1211,35 +138,15 @@ class UIGenerator:
             if visible is False:
                 continue
 
-            comp_type = self._get_component_type(comp)
-            label = getattr(comp, "label", "") or port_name
+            comp_data = self._serialize_gradio_component(comp, port_name)
 
-            value = None
             if result is not None:
                 if isinstance(result, dict):
-                    value = result.get(port_name, result.get(label))
+                    comp_data["value"] = result.get(port_name, result.get(comp_data["props"]["label"]))
                 else:
-                    value = result
+                    comp_data["value"] = result
 
-            if comp_type == "json" and value is not None:
-                value = json.dumps(value, indent=2, default=str)
-            elif comp_type == "markdown" and value is not None:
-                value = str(value)
-            elif value is not None:
-                value = str(value)
-
-            components.append(
-                {
-                    "type": comp_type,
-                    "label": label,
-                    "port_name": port_name,
-                    "value": value or "",
-                    "is_audio": comp_type == "audio",
-                    "is_json": comp_type == "json",
-                    "is_text": comp_type in ("text", "textbox"),
-                    "is_markdown": comp_type == "markdown",
-                }
-            )
+            components.append(comp_data)
         return components
 
     def _build_scattered_items(
@@ -1327,6 +234,46 @@ class UIGenerator:
         history = history or {}
 
         depths = self._compute_node_depths()
+
+        synthetic_input_nodes: List[Dict[str, Any]] = []
+        synthetic_edges: List[Dict[str, Any]] = []
+        input_node_positions: Dict[str, tuple] = {}
+
+        for node_name in self.graph.nodes:
+            node = self.graph.nodes[node_name]
+            if node._input_components:
+                for idx, (port_name, comp) in enumerate(node._input_components.items()):
+                    input_node_name = f"{node_name}__{port_name}"
+                    input_node_id = input_node_name.replace(" ", "_").replace("-", "_")
+
+                    comp_data = self._serialize_gradio_component(comp, "value")
+                    label = comp_data["props"].get("label") or port_name
+
+                    if input_node_name in input_values:
+                        comp_data["value"] = input_values[input_node_name].get(
+                            "value", comp_data["value"]
+                        )
+
+                    synthetic_input_nodes.append(
+                        {
+                            "node_name": input_node_name,
+                            "display_name": label,
+                            "target_node": node_name,
+                            "target_port": port_name,
+                            "component": comp_data,
+                            "index": idx,
+                        }
+                    )
+
+                    synthetic_edges.append(
+                        {
+                            "from_node": input_node_id,
+                            "from_port": "value",
+                            "to_node": node_name.replace(" ", "_").replace("-", "_"),
+                            "to_port": port_name,
+                        }
+                    )
+
         max_depth = max(depths.values()) if depths else 0
 
         nodes_by_depth: Dict[int, List[str]] = {}
@@ -1335,25 +282,86 @@ class UIGenerator:
                 nodes_by_depth[depth] = []
             nodes_by_depth[depth].append(node_name)
 
-        x_spacing = 400
-        y_spacing = 320
-        x_start = 50
+        x_spacing = 350
+        input_column_x = 50
+        x_start = 400
         y_start = 50
+        y_gap = 30
+        base_node_height = 100
+        component_base_height = 60
+        line_height = 18
+
+        def calc_component_height(comp_data: Dict) -> int:
+            lines = comp_data.get("props", {}).get("lines", 1)
+            lines = min(lines, 6)
+            return component_base_height + max(0, lines - 1) * line_height
+
+        def calc_node_height(components: List[Dict], num_ports: int = 1) -> int:
+            comp_height = sum(calc_component_height(c) for c in components)
+            port_height = max(num_ports, 1) * 22
+            return base_node_height + port_height + comp_height
+
+        all_input_nodes_sorted: List[Dict] = []
+        for syn_node in synthetic_input_nodes:
+            target_depth = depths.get(syn_node["target_node"], 0)
+            all_input_nodes_sorted.append({**syn_node, "target_depth": target_depth})
+        all_input_nodes_sorted.sort(key=lambda x: (x["target_depth"], x["target_node"], x["index"]))
+
+        current_input_y = y_start
+        for syn_node in all_input_nodes_sorted:
+            input_node_positions[syn_node["node_name"]] = (input_column_x, current_input_y)
+            node_height = calc_node_height([syn_node["component"]], 1)
+            current_input_y += node_height + y_gap
 
         node_positions: Dict[str, tuple] = {}
         for depth in range(max_depth + 1):
             depth_nodes = nodes_by_depth.get(depth, [])
-            for idx, node_name in enumerate(depth_nodes):
+            current_y = y_start
+            for node_name in depth_nodes:
+                node = self.graph.nodes[node_name]
+                output_comps = self._build_output_components(node)
+                num_ports = max(len(node._input_ports or []), len(node._output_ports or []))
+                node_height = calc_node_height(output_comps, num_ports)
                 x = x_start + depth * x_spacing
-                y = y_start + idx * y_spacing
-                node_positions[node_name] = (x, y)
+                node_positions[node_name] = (x, current_y)
+                current_y += node_height + y_gap
 
         nodes = []
+
+        for syn_node in synthetic_input_nodes:
+            node_name = syn_node["node_name"]
+            display_name = syn_node["display_name"]
+            node_id = node_name.replace(" ", "_").replace("-", "_")
+            x, y = input_node_positions.get(node_name, (50, 50))
+            comp = syn_node["component"]
+
+            nodes.append(
+                {
+                    "id": node_id,
+                    "name": display_name,
+                    "type": "INPUT",
+                    "inputs": [],
+                    "outputs": ["value"],
+                    "x": x,
+                    "y": y,
+                    "has_input": False,
+                    "input_value": "",
+                    "input_components": [comp],
+                    "output_components": [],
+                    "is_map_node": False,
+                    "map_items": [],
+                    "map_item_count": 0,
+                    "item_output_type": "text",
+                    "status": "pending",
+                    "result": "",
+                    "is_output_node": False,
+                    "is_input_node": True,
+                }
+            )
+
         for node_name in self.graph.nodes:
             node = self.graph.nodes[node_name]
             x, y = node_positions.get(node_name, (50, 50))
-
-            has_component_inputs = self._has_component_inputs(node_name)
 
             result = node_results.get(node_name)
             result_str = ""
@@ -1371,15 +379,8 @@ class UIGenerator:
 
             node_id = node_name.replace(" ", "_").replace("-", "_")
 
-            connected_input_ports = set()
-            for edge in self.graph._edges:
-                if edge.target_node._name == node_name:
-                    connected_input_ports.add(edge.target_port)
-
             input_ports_data = []
             for port in node._input_ports or []:
-                if port in node._input_components:
-                    continue
                 if port in node._fixed_inputs:
                     continue
                 port_history = history.get(node_name, {}).get(port, [])
@@ -1389,13 +390,6 @@ class UIGenerator:
                         "history_count": len(port_history) if port_history else 0,
                     }
                 )
-
-            input_components = self._build_input_components(node)
-            if input_components and node_name in input_values:
-                for comp in input_components:
-                    port_name = comp.get("port_name", comp["label"])
-                    if port_name in input_values[node_name]:
-                        comp["value"] = input_values[node_name][port_name]
 
             output_components = self._build_output_components(node, result)
             scattered_items = (
@@ -1421,7 +415,7 @@ class UIGenerator:
                     "y": y,
                     "has_input": False,
                     "input_value": input_values.get(node_name, ""),
-                    "input_components": input_components,
+                    "input_components": [],
                     "output_components": output_components,
                     "is_map_node": is_scattered,
                     "map_items": scattered_items,
@@ -1430,7 +424,7 @@ class UIGenerator:
                     "status": node_statuses.get(node_name, "pending"),
                     "result": result_str,
                     "is_output_node": is_output,
-                    "is_input_node": is_entry and not has_component_inputs,
+                    "is_input_node": False,
                 }
             )
 
@@ -1447,6 +441,17 @@ class UIGenerator:
                         "-", "_"
                     ),
                     "to_port": edge.target_port,
+                }
+            )
+
+        for i, syn_edge in enumerate(synthetic_edges):
+            edges.append(
+                {
+                    "id": f"input_edge_{i}",
+                    "from_node": syn_edge["from_node"],
+                    "from_port": syn_edge["from_port"],
+                    "to_node": syn_edge["to_node"],
+                    "to_port": syn_edge["to_port"],
                 }
             )
 
@@ -1467,8 +472,21 @@ class UIGenerator:
             self.session_id = self.state.create_session(self.graph.name)
 
         execution_order = self.graph.get_execution_order()
-        input_values = canvas_data.get("inputs", {}) if canvas_data else {}
+        raw_input_values = canvas_data.get("inputs", {}) if canvas_data else {}
         history = canvas_data.get("history", {}) if canvas_data else {}
+
+        input_values: Dict[str, Dict[str, Any]] = {}
+        for key, val in raw_input_values.items():
+            if "__" in key:
+                target_node, port_name = key.rsplit("__", 1)
+                if target_node not in input_values:
+                    input_values[target_node] = {}
+                if isinstance(val, dict) and "value" in val:
+                    input_values[target_node][port_name] = val["value"]
+                else:
+                    input_values[target_node][port_name] = val
+            else:
+                input_values[key] = val
 
         for node_name, node_inputs in input_values.items():
             if isinstance(node_inputs, dict):
@@ -1597,7 +615,7 @@ class UIGenerator:
         self._custom_css = """
             @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
             
-            * { margin: 0; padding: 0; box-sizing: border-box; }
+            * { margin: 0; box-sizing: border-box; }
             
             body, .gradio-container {
                 background: #000000 !important;
@@ -1613,53 +631,12 @@ class UIGenerator:
             
             .main-container, .contain, .block {
                 max-width: 100% !important;
-                padding: 0 !important;
                 margin: 0 !important;
                 background: transparent !important;
                 border: none !important;
             }
             
             footer, .footer { display: none !important; }
-            
-            .run-btn { 
-                position: fixed !important;
-                bottom: 32px !important;
-                right: 32px !important;
-                z-index: 1000 !important;
-                background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%) !important;
-                border: none !important;
-                font-weight: 600 !important;
-                font-size: 14px !important;
-                padding: 14px 32px !important;
-                border-radius: 12px !important;
-                box-shadow: 
-                    0 8px 24px rgba(249, 115, 22, 0.5),
-                    0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-                letter-spacing: 0.5px !important;
-                text-transform: uppercase !important;
-                font-family: 'Space Grotesk', sans-serif !important;
-                color: #ffffff !important;
-            }
-            .run-btn:hover {
-                transform: translateY(-3px) scale(1.02) !important;
-                box-shadow: 
-                    0 12px 35px rgba(249, 115, 22, 0.6),
-                    0 0 0 1px rgba(255, 255, 255, 0.15) inset !important;
-            }
-            .run-btn:active {
-                transform: translateY(-1px) scale(0.99) !important;
-            }
-            
-            .button-row {
-                position: fixed !important;
-                bottom: 0 !important;
-                right: 0 !important;
-                z-index: 1000 !important;
-                background: transparent !important;
-                border: none !important;
-                padding: 0 !important;
-            }
         """
 
         def handle_canvas_action(canvas_data):
