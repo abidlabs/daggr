@@ -51,7 +51,17 @@ class SequentialExecutor:
 
                 if source_name in self.results:
                     source_result = self.results[source_name]
-                    if isinstance(source_result, dict) and source_output in source_result:
+
+                    if edge.is_gathered and isinstance(source_result, dict) and "_scattered_results" in source_result:
+                        scattered_results = source_result["_scattered_results"]
+                        extracted = []
+                        for item_result in scattered_results:
+                            if isinstance(item_result, dict) and source_output in item_result:
+                                extracted.append(item_result[source_output])
+                            else:
+                                extracted.append(item_result)
+                        inputs[target_input] = extracted
+                    elif isinstance(source_result, dict) and source_output in source_result:
                         inputs[target_input] = source_result[source_output]
                     elif isinstance(source_result, (list, tuple)):
                         try:

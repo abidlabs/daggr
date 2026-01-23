@@ -194,8 +194,8 @@ graph \
     .edge(scatter(dialogue_gen.dialogue, item_output=gr.Audio()), tts.segment) \
     .edge(host_voice_gen.voice, tts.host_voice) \
     .edge(guest_voice_gen.voice, tts.guest_voice) \
-    .edge(gather(tts.audio), combine_test.segments) \
-    .edge(gather(tts.audio), combine_full.segments)
+    .edge(tts.audio, gather(combine_test.segments)) \
+    .edge(tts.audio, gather(combine_full.segments))
 
 
 graph.launch()
