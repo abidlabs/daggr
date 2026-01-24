@@ -11,6 +11,12 @@
 
 `daggr` is a Python library for building AI workflows that connect Gradio Spaces, ML models (through Hugging Face Inference Providers), and custom functions. It automatically generates a visual canvas or your workflow allowing you to inspect intermediate outputs, rerun any step, and preserves state for complex workflows.
 
+
+
+https://github.com/user-attachments/assets/2cfe49c0-3118-4570-b2bd-f87c333836b5
+
+
+
 ## Installation
 
 ```bash
