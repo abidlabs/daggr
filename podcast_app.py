@@ -1,9 +1,12 @@
-import gradio as gr
+import tempfile
 
-from daggr import FnNode, GradioNode, Graph, InferenceNode
+import gradio as gr
+from pydub import AudioSegment
+
+from daggr import FnNode, GradioNode, Graph
 
 host_voice = GradioNode(
-    space_or_url="abidlabs/tts",
+    space_or_url="abidlabs/tts",  # Currently mocked. But this would be a call to e.g. Qwen/Qwen3-TTS
     api_name="/generate_voice_design",
     inputs={
         "voice_description": gr.Textbox(
@@ -65,8 +68,14 @@ dialogue = FnNode(
     },
 )
 
-samples = InferenceNode(
-    model="ResembleAI/chatterbox",
+
+def chatterbox(text: str, audio: str) -> str:
+    # Currently mocked. But this would be a call to e.g. ResembleAI/chatterbox-turbo
+    return audio
+
+
+samples = FnNode(
+    fn=chatterbox,
     inputs={
         "text": dialogue.json.each["text"],
         "audio": dialogue.json.each["voice"],
@@ -78,7 +87,20 @@ samples = InferenceNode(
 
 
 def combine_audio_files(audio_files: list[str]) -> str:
-    return audio_files[0] if audio_files else None
+    if not audio_files:
+        return None
+    if len(audio_files) == 1:
+        return audio_files[0]
+
+    combined = AudioSegment.empty()
+    for audio_path in audio_files:
+        if audio_path:
+            segment = AudioSegment.from_file(audio_path)
+            combined += segment
+
+    output_path = tempfile.mktemp(suffix=".mp3")
+    combined.export(output_path, format="mp3")
+    return output_path
 
 
 full_audio = FnNode(
