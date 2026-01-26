@@ -133,4 +133,4 @@ graph = Graph(
     nodes=[host_voice, guest_voice, dialogue, samples, full_audio],
 )
 
-graph.launch(share=True)
+graph.launch(s)

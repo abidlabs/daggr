@@ -23,7 +23,7 @@ def test_edge_api_with_typed_ports():
     assert node_a._name == "step_a"
     assert node_a.text.name == "text"
 
-    graph = Graph()
+    graph = Graph(name="test-edge-api")
     graph.edge(node_a.output, node_b.data)
 
     assert len(graph._edges) == 1
@@ -40,7 +40,7 @@ def test_port_validation():
     node1 = FnNode(fn=process)
     node2 = FnNode(fn=consume)
 
-    graph = Graph()
+    graph = Graph(name="test-port-validation")
     graph.edge(node1.nonexistent_port, node2.data)
     graph.edge(node1.output, node2.missing_input)
 

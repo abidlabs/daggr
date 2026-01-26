@@ -670,6 +670,7 @@
 		const newY = canvasHeight / 2 - centerY * newScale;
 
 		transform = { x: newX, y: newY, scale: Math.max(0.2, newScale) };
+		debounceSaveTransform();
 	}
 
 	function zoomIn() {
@@ -1047,7 +1048,7 @@
 	</div>
 
 	<div class="zoom-controls">
-		<img src="/daggr-assets/logo_dark.png" alt="daggr" class="daggr-logo" />
+		<img src="/daggr-assets/logo_dark_small.png" alt="daggr" class="daggr-logo" />
 		<button class="zoom-btn" onclick={zoomOut} title="Zoom out">−</button>
 		<span class="zoom-level">{zoomPercent}%</span>
 		<button class="zoom-btn" onclick={zoomIn} title="Zoom in">+</button>

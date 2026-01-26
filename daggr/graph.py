@@ -16,9 +16,22 @@ def _suggest_similar(invalid: str, valid_options: set) -> Optional[str]:
 
 
 class Graph:
-    def __init__(
-        self, name: str = "daggr-workflow", nodes: Optional[Sequence[Node]] = None
-    ):
+    def __init__(self, name: str, nodes: Optional[Sequence[Node]] = None):
+        """
+        Create a new Graph.
+
+        Args:
+            name: A unique identifier for this graph. Required for persistence -
+                  each daggr app needs a unique name so that saved data (sheets,
+                  inputs, results) can be associated with the correct app.
+            nodes: Optional list of nodes to add to the graph.
+        """
+        if not name or not isinstance(name, str):
+            raise ValueError(
+                "Graph requires a unique 'name' parameter. This is needed to persist "
+                "data (sheets, inputs, results) uniquely across different daggr apps. "
+                "Example: Graph(name='my-podcast-generator', nodes=[...])"
+            )
         self.name = name
         self.nodes: Dict[str, Node] = {}
         self._nx_graph = nx.DiGraph()

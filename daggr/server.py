@@ -586,7 +586,7 @@ class DaggrServer:
             if not token:
                 return None
 
-            info = whoami()
+            info = whoami(cache=True)
             return {
                 "username": info.get("name"),
                 "fullname": info.get("fullname"),
