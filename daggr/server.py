@@ -1209,7 +1209,11 @@ class DaggrServer:
             yield graph_data
 
     def run(
-        self, host: str = "127.0.0.1", port: int = 7860, share: bool | None = None, **kwargs
+        self,
+        host: str = "127.0.0.1",
+        port: int = 7860,
+        share: bool | None = None,
+        **kwargs,
     ):
         import secrets
         import threading
@@ -1255,8 +1259,13 @@ class DaggrServer:
             )
 
             if is_colab and ipython_check():
-                from IPython.display import display, HTML
-                display(HTML(f'<a href="{share_url}" target="_blank">Open daggr app in new tab: {share_url}</a>'))
+                from IPython.display import HTML, display
+
+                display(
+                    HTML(
+                        f'<a href="{share_url}" target="_blank">Open daggr app in new tab: {share_url}</a>'
+                    )
+                )
 
             try:
                 while True:
