@@ -143,7 +143,7 @@ class SessionState:
                 cursor.execute("DROP TABLE _node_inputs_old")
                 cursor.execute("DROP TABLE _node_results_old")
 
-    def get_effective_user_id(self, hf_user: Optional[Dict] = None) -> str | None:
+    def get_effective_user_id(self, hf_user: dict | None = None) -> str | None:
         is_on_spaces = os.environ.get("SPACE_ID") is not None
         if hf_user and hf_user.get("username"):
             return hf_user["username"]
@@ -304,7 +304,7 @@ class SessionState:
         conn.commit()
         conn.close()
 
-    def get_inputs(self, sheet_id: str) -> Dict[str, dict[str, Any]]:
+    def get_inputs(self, sheet_id: str) -> dict[str, dict[str, Any]]:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -313,7 +313,7 @@ class SessionState:
         )
         results = cursor.fetchall()
         conn.close()
-        inputs: Dict[str, dict[str, Any]] = {}
+        inputs: dict[str, dict[str, Any]] = {}
         for node_name, port_name, value_json in results:
             if node_name not in inputs:
                 inputs[node_name] = {}
@@ -336,7 +336,7 @@ class SessionState:
         conn.commit()
         conn.close()
 
-    def get_latest_result(self, sheet_id: str, node_name: str) -> Optional[Any]:
+    def get_latest_result(self, sheet_id: str, node_name: str) -> Any | None:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -353,7 +353,7 @@ class SessionState:
 
     def get_result_by_index(
         self, sheet_id: str, node_name: str, index: int
-    ) -> Optional[Any]:
+    ) -> Any | None:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -370,7 +370,7 @@ class SessionState:
             return json.loads(results[-1][0])
         return None
 
-    def get_all_results(self, sheet_id: str) -> Dict[str, List[Any]]:
+    def get_all_results(self, sheet_id: str) -> dict[str, list[Any]]:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -381,7 +381,7 @@ class SessionState:
         )
         results = cursor.fetchall()
         conn.close()
-        all_results: Dict[str, List[Any]] = {}
+        all_results: dict[str, list[Any]] = {}
         for node_name, result_json in results:
             if node_name not in all_results:
                 all_results[node_name] = []

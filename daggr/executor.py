@@ -17,7 +17,7 @@ class SequentialExecutor:
         self.graph = graph
         self.clients: dict[str, Any] = {}
         self.results: dict[str, Any] = {}
-        self.scattered_results: Dict[str, list[Any]] = {}
+        self.scattered_results: dict[str, list[Any]] = {}
 
     def _get_client(self, node_name: str):
         from daggr.node import GradioNode
@@ -221,7 +221,7 @@ class SequentialExecutor:
             return {output_ports[0]: raw_result}
 
     def execute_node(
-        self, node_name: str, user_inputs: Optional[dict[str, Any]] = None
+        self, node_name: str, user_inputs: dict[str, Any] | None = None
     ) -> Any:
         node = self.graph.nodes[node_name]
         scattered_edges = self._get_scattered_input_edges(node_name)
@@ -253,8 +253,8 @@ class SequentialExecutor:
         self,
         node_name: str,
         scattered_edges: list,
-        user_inputs: Optional[dict[str, Any]] = None,
-    ) -> Dict[str, list[Any]]:
+        user_inputs: dict[str, Any] | None = None,
+    ) -> dict[str, list[Any]]:
         first_edge = scattered_edges[0]
         source_name = first_edge.source_node._name
         source_port = first_edge.source_port
@@ -295,7 +295,7 @@ class SequentialExecutor:
         return {"_scattered_results": results, "_items": items}
 
     def execute_scattered_item(
-        self, node_name: str, item_index: int, inputs: Optional[dict[str, Any]] = None
+        self, node_name: str, item_index: int, inputs: dict[str, Any] | None = None
     ) -> Any:
         scattered_edges = self._get_scattered_input_edges(node_name)
         if not scattered_edges:
@@ -340,7 +340,7 @@ class SequentialExecutor:
 
         return result
 
-    def execute_all(self, entry_inputs: Dict[str, dict[str, Any]]) -> dict[str, Any]:
+    def execute_all(self, entry_inputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
         execution_order = self.graph.get_execution_order()
         self.results = {}
 

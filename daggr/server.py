@@ -23,7 +23,7 @@ class DaggrServer:
         self.executor = SequentialExecutor(graph)
         self.state = SessionState()
         self.app = FastAPI(title=graph.name)
-        self.connections: Dict[str, WebSocket] = {}
+        self.connections: dict[str, WebSocket] = {}
         self._setup_routes()
 
     def _setup_routes(self):
@@ -416,7 +416,7 @@ class DaggrServer:
                 return f"/file{value}"
         return value
 
-    def _build_input_components(self, node) -> List[dict[str, Any]]:
+    def _build_input_components(self, node) -> list[dict[str, Any]]:
         if not node._input_components:
             return []
         return [
@@ -426,7 +426,7 @@ class DaggrServer:
 
     def _build_output_components(
         self, node, result: Any = None
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not node._output_components:
             return []
 
@@ -458,7 +458,7 @@ class DaggrServer:
 
     def _build_scattered_items(
         self, node_name: str, result: Any = None
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         scattered_edge = self._get_scattered_edge(node_name)
         if not scattered_edge:
             return []
@@ -514,7 +514,7 @@ class DaggrServer:
 
     def _serialize_item_list_schema(
         self, schema: dict[str, Any]
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         serialized = []
         for field_name, comp in schema.items():
             comp_data = self._serialize_component(comp, field_name)
@@ -523,7 +523,7 @@ class DaggrServer:
 
     def _build_item_list_items(
         self, node, port_name: str, result: Any = None
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         schema = node._item_list_schemas.get(port_name, {})
         if not schema:
             return []
@@ -541,7 +541,7 @@ class DaggrServer:
         return items
 
     def _apply_item_list_edits(
-        self, node_name: str, result: Any, item_list_values: Dict
+        self, node_name: str, result: Any, item_list_values: dict
     ) -> Any:
         node = self.graph.nodes[node_name]
         if not node._item_list_schemas:
@@ -606,9 +606,9 @@ class DaggrServer:
     def _build_graph_data(
         self,
         node_results: dict[str, Any] | None = None,
-        node_statuses: Dict[str, str] | None = None,
+        node_statuses: dict[str, str] | None = None,
         input_values: dict[str, Any] | None = None,
-        history: Dict[str, Dict[str, List[Dict]]] | None = None,
+        history: dict[str, dict[str, list[dict]]] | None = None,
         session_id: str | None = None,
     ) -> dict:
         node_results = node_results or {}
@@ -618,11 +618,11 @@ class DaggrServer:
 
         depths = self._compute_node_depths()
 
-        synthetic_input_nodes: List[dict[str, Any]] = []
-        synthetic_edges: List[dict[str, Any]] = []
-        input_node_positions: Dict[str, tuple] = {}
+        synthetic_input_nodes: list[dict[str, Any]] = []
+        synthetic_edges: list[dict[str, Any]] = []
+        input_node_positions: dict[str, tuple] = {}
 
-        component_to_input_node: Dict[int, str] = {}
+        component_to_input_node: dict[int, str] = {}
         creation_order = 0
         for node_name in self.graph.nodes:
             node = self.graph.nodes[node_name]
@@ -683,7 +683,7 @@ class DaggrServer:
 
         max_depth = max(depths.values()) if depths else 0
 
-        nodes_by_depth: Dict[int, list[str]] = {}
+        nodes_by_depth: dict[int, list[str]] = {}
         for node_name, depth in depths.items():
             if depth not in nodes_by_depth:
                 nodes_by_depth[depth] = []
@@ -698,17 +698,17 @@ class DaggrServer:
         component_base_height = 60
         line_height = 18
 
-        def calc_component_height(comp_data: Dict) -> int:
+        def calc_component_height(comp_data: dict) -> int:
             lines = comp_data.get("props", {}).get("lines", 1)
             lines = min(lines, 6)
             return component_base_height + max(0, lines - 1) * line_height
 
-        def calc_node_height(components: List[Dict], num_ports: int = 1) -> int:
+        def calc_node_height(components: list[dict], num_ports: int = 1) -> int:
             comp_height = sum(calc_component_height(c) for c in components)
             port_height = max(num_ports, 1) * 22
             return base_node_height + port_height + comp_height
 
-        all_input_nodes_sorted: List[Dict] = []
+        all_input_nodes_sorted: list[dict] = []
         for syn_node in synthetic_input_nodes:
             target_depth = depths.get(syn_node["target_node"], 0)
             all_input_nodes_sorted.append({**syn_node, "target_depth": target_depth})
@@ -723,7 +723,7 @@ class DaggrServer:
             node_height = calc_node_height([syn_node["component"]], 1)
             current_input_y += node_height + y_gap
 
-        node_positions: Dict[str, tuple] = {}
+        node_positions: dict[str, tuple] = {}
         for depth in range(max_depth + 1):
             depth_nodes = nodes_by_depth.get(depth, [])
             current_y = y_start
@@ -918,7 +918,7 @@ class DaggrServer:
 
     def _get_user_provided_output(
         self, node, node_id: str, input_values: dict[str, Any]
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         if not node._output_components:
             return None
 
@@ -1016,7 +1016,7 @@ class DaggrServer:
         execution_order = self.graph.get_execution_order()
         nodes_to_execute = [n for n in execution_order if n in nodes_to_run]
 
-        entry_inputs: Dict[str, dict[str, Any]] = {}
+        entry_inputs: dict[str, dict[str, Any]] = {}
         for node_name in nodes_to_execute:
             node = self.graph.nodes[node_name]
             if node._input_components:
@@ -1094,7 +1094,7 @@ class DaggrServer:
         execution_order = self.graph.get_execution_order()
         nodes_to_execute = [n for n in execution_order if n in nodes_to_run]
 
-        entry_inputs: Dict[str, dict[str, Any]] = {}
+        entry_inputs: dict[str, dict[str, Any]] = {}
         for node_name in nodes_to_execute:
             node = self.graph.nodes[node_name]
             if node._input_components:
