@@ -24,10 +24,10 @@ background_remover = GradioNode(
     "hf-applications/background-removal",
     api_name="/image",
     inputs={
-        "image": glm_image.image,
+        "image": glm_image.image,  # Connect the output of the GLM Image node to the input of the background remover node
     },
     outputs={
-        "image": gr.Image(label="Final Image"),
+        "image": gr.Image(label="Final Image"),  # Display output in an Image component
     },
 )
 
