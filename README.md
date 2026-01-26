@@ -78,6 +78,7 @@ graph.launch()
 
 Run `python app.py` to start the Python file and you should see a Daggr app like this that you can use to generate images with a transparent background!
 
+<img width="1462" height="508" alt="Screenshot 2026-01-26 at 1 01 58 PM" src="https://github.com/user-attachments/assets/b751abd8-e143-4882-817b-036fb66a6d92" />
 
 
 ## When to (Not) Use Daggr
