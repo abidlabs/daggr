@@ -9,12 +9,11 @@
   </div>
 </h3>
 
-`daggr` is a Python library for building AI workflows that connect Gradio Spaces, ML models (through Hugging Face Inference Providers), and custom functions. It automatically generates a visual canvas for your workflow allowing you to inspect intermediate outputs, rerun any step any number of times, and also preserves state for complex or long-running workflows.
+`daggr` is a Python library for building AI workflows that connect Gradio Spaces, ML models (through [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers/en/index)), and custom functions. It automatically generates a visual canvas for your workflow allowing you to inspect intermediate outputs, rerun any step any number of times, and also preserves state for complex or long-running workflows.
 
 
 
 https://github.com/user-attachments/assets/2cfe49c0-3118-4570-b2bd-f87c333836b5
-
 
 
 ## Installation
@@ -56,6 +55,9 @@ processor = FnNode(
 graph = Graph(name="Audio Pipeline", nodes=[voice, processor])
 graph.launch()
 ```
+
+
+
 
 ## How It Works
 
@@ -204,6 +206,14 @@ final = FnNode(
 graph = Graph(name="Podcast Generator", nodes=[host_voice, guest_voice, dialogue, samples, final])
 graph.launch()
 ```
+
+## Comparisons
+
+**ComfyUI**: ComfyUI is a visual node-based interface primarily for Stable Diffusion image generation workflows. daggr takes a Python-first approach where you define workflows in code and the visual canvas is generated automatically—plus it supports any Gradio Space, Hugging Face model, or custom function rather than being limited to image generation pipelines.
+
+**Airflow**: Airflow is an enterprise workflow orchestration platform designed for scheduling, monitoring, and managing data pipelines at scale. daggr is built for interactive AI/ML workflows with real-time visual feedback and immediate execution, making it ideal for prototyping, demos, and workflows where you want to inspect intermediate outputs and rerun individual steps on the fly.
+
+**Gradio**: Gradio creates web UIs for individual ML models and demos. daggr extends this by enabling DAG-based workflow composition—you can chain multiple Gradio Spaces, custom Python functions, and inference providers together while automatically generating a visual canvas that displays the entire pipeline with inspectable intermediate outputs at each node.
 
 ## Development
 
