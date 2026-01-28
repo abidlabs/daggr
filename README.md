@@ -176,7 +176,6 @@ from daggr import FnNode
 import gradio as gr
 
 def summarize(text: str, max_words: int = 100) -> str:
-    # Your summarization logic here
     words = text.split()[:max_words]
     return " ".join(words) + "..."
 
@@ -194,7 +193,7 @@ summarizer = FnNode(
 
 **Inputs:** Keys in the `inputs` dict must match the function's parameter names. If you don't specify an input, it uses the function's default value (if available).
 
-**Outputs:** For single return values, use any name you like. For multiple return values, the output names map to return values in order:
+**Outputs:** Return values are mapped to output ports in the same order they are defined in the `outputs` dict—just like GradioNode. For a single output, simply return the value. For multiple outputs, return a tuple:
 
 ```python
 def process(text: str) -> tuple[str, int]:
@@ -209,6 +208,8 @@ node = FnNode(
     },
 )
 ```
+
+Note: If you return a dict or list, it will be treated as a single value (mapped to the first output port), not as a mapping to output ports.
 
 #### `InferenceNode`
 
@@ -345,13 +346,13 @@ guest_voice = GradioNode(
 )
 
 # Generate dialogue (would be an LLM call in production)
-def generate_dialogue(topic: str, host_voice: str, guest_voice: str):
+def generate_dialogue(topic: str, host_voice: str, guest_voice: str) -> tuple[list, str]:
     dialogue = [
         {"voice": host_voice, "text": "Hello, how are you?"},
         {"voice": guest_voice, "text": "I'm great, thanks!"},
     ]
     html = "<b>Host:</b> Hello!<br><b>Guest:</b> I'm great!"
-    return dialogue, html
+    return dialogue, html  # Returns tuple: first value -> "json", second -> "html"
 
 dialogue = FnNode(
     fn=generate_dialogue,
@@ -361,8 +362,8 @@ dialogue = FnNode(
         "guest_voice": guest_voice.audio,
     },
     outputs={
-        "json": gr.JSON(visible=False),
-        "html": gr.HTML(label="Script"),
+        "json": gr.JSON(visible=False),  # Maps to first return value
+        "html": gr.HTML(label="Script"),  # Maps to second return value
     },
 )
 

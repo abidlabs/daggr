@@ -308,9 +308,7 @@ class SequentialExecutor:
         if not output_ports:
             return {"output": raw_result}
 
-        if isinstance(raw_result, dict):
-            return raw_result
-        elif isinstance(raw_result, (list, tuple)):
+        if isinstance(raw_result, tuple):
             result = {}
             for i, port_name in enumerate(output_ports):
                 if i < len(raw_result):
@@ -318,8 +316,6 @@ class SequentialExecutor:
                 else:
                     result[port_name] = None
             return result
-        elif len(output_ports) == 1:
-            return {output_ports[0]: raw_result}
         else:
             return {output_ports[0]: raw_result}
 

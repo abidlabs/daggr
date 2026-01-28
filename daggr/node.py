@@ -478,6 +478,10 @@ class FnNode(Node):
     FnNode allows you to use any Python function as a node in the graph.
     Input ports are automatically discovered from the function signature.
 
+    Return values are mapped to output ports in order, just like GradioNode:
+    - Single value: maps to the first output port
+    - Tuple: each element maps to the corresponding output port in order
+
     Args:
         fn: The Python function to wrap.
         name: Optional display name. Defaults to the function name.
@@ -487,9 +491,12 @@ class FnNode(Node):
             or ItemList schemas.
 
     Example:
-        >>> def process_text(text: str) -> dict:
-        ...     return {"result": text.upper()}
-        >>> node = FnNode(process_text)
+        >>> def process_text(text: str) -> tuple[str, int]:
+        ...     return text.upper(), len(text)
+        >>> node = FnNode(
+        ...     process_text,
+        ...     outputs={"uppercase": gr.Textbox(), "length": gr.Number()}
+        ... )
     """
 
     def __init__(
