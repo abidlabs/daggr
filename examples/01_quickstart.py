@@ -31,10 +31,9 @@ background_remover = GradioNode(
         "image": glm_image.image,  # Connect the output of the GLM Image node to the input of the background remover node
     },
     outputs={
-        "original_image": None,  # Original image is returned but not displayed
-        "final_image": gr.Image(
-            label="Final Image"
-        ),  # Transparent bg image is displayed
+        "images": gr.ImageSlider(
+            label="Final Image"  # Display original and final image in an ImageSlider
+        ),
     },
 )
 
