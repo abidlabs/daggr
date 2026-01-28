@@ -18,6 +18,7 @@
 	import HighlightedText from './HighlightedText.svelte';
 	import Markdown from './Markdown.svelte';
 	import Model3D from './Model3D.svelte';
+	import Html from './Html.svelte';
 	import type { GradioComponentData } from '../types';
 
 	interface Props {
@@ -82,10 +83,11 @@
 			showLabel={true}
 		/>
 	{:else if comp.component === 'html'}
-		<div class="gr-textbox-wrap">
-			<span class="gr-label">{comp.props?.label || comp.port_name}</span>
-			<div class="gr-html">{@html comp.value || ''}</div>
-		</div>
+		<Html
+			label={comp.props?.label || comp.port_name}
+			value={value || ''}
+			showLabel={true}
+		/>
 	{:else if comp.component === 'json'}
 		<Json
 			label={comp.props?.label || comp.port_name}
@@ -282,50 +284,6 @@
 	.gr-check-label {
 		font-size: 11px;
 		color: #e5e7eb;
-	}
-
-	.gr-markdown,
-	.gr-html {
-		font-size: 11px;
-		color: #d1d5db;
-		line-height: 1.4;
-		padding: 6px 10px 8px;
-		max-height: 100px;
-		overflow: auto;
-	}
-
-	.gr-html :global(strong), .gr-html :global(b) {
-		font-weight: 600;
-		color: #f3f4f6;
-	}
-
-	.gr-html :global(em), .gr-html :global(i) {
-		font-style: italic;
-	}
-
-	.gr-html :global(a) {
-		color: #f97316;
-		text-decoration: underline;
-	}
-
-	.gr-html :global(code) {
-		font-family: 'SF Mono', Monaco, Consolas, monospace;
-		background: rgba(249, 115, 22, 0.1);
-		padding: 1px 4px;
-		border-radius: 3px;
-		font-size: 10px;
-	}
-
-	.gr-json {
-		font-size: 10px;
-		font-family: 'SF Mono', Monaco, Consolas, monospace;
-		color: #9ca3af;
-		padding: 6px 10px 8px;
-		max-height: 100px;
-		overflow: auto;
-		margin: 0;
-		white-space: pre-wrap;
-		word-break: break-all;
 	}
 
 	.gr-fallback {
