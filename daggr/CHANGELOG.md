@@ -1,5 +1,11 @@
 # daggr
 
+## 0.5.3
+
+### Features
+
+- [#19](https://github.com/gradio-app/daggr/pull/19) [`cd956fe`](https://github.com/gradio-app/daggr/commit/cd956fe29945bdfd31bbe76fcb80d3f9c97cc301) - Add daggr tag to deployed Spaces.  Thanks @gary149!
+
 ## 0.5.2
 
 ### Features
