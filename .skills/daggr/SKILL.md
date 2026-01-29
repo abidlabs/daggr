@@ -1,5 +1,5 @@
 ---
-name: daggr-workflow
+name: daggr
 description: |
   Build DAG-based AI pipelines connecting Gradio Spaces, HuggingFace models, and Python functions into visual workflows. Use when asked to create a workflow, build a pipeline, connect AI models, chain Gradio Spaces, create a daggr app, build multi-step AI applications, or orchestrate ML models. Triggers on: "build a workflow", "create a pipeline", "connect models", "daggr", "chain spaces", "AI pipeline".
 license: MIT
@@ -8,9 +8,9 @@ metadata:
   version: "1.0"
 ---
 
-# daggr Workflow Builder
+# daggr
 
-Build visual DAG pipelines connecting Gradio Spaces, HF Inference API, and Python functions.
+Build visual DAG pipelines connecting Gradio Spaces, HF Inference Providers, and Python functions.
 
 ## Quick Start
 
@@ -54,11 +54,11 @@ node = FnNode(
 )
 ```
 
-### InferenceNode - HF Inference API
+### InferenceNode - [HF Inference Providers](https://huggingface.co/docs/inference-providers)
 
 ```python
 node = InferenceNode(
-    model="org/model:provider",  # model:provider format
+    model="org/model:provider",  # model:provider (fal-ai, replicate, together, etc.)
     inputs={"image": other_node.image, "prompt": gr.Textbox()},
     outputs={"image": gr.Image()},
 )
@@ -92,22 +92,20 @@ final = FnNode(fn=combine,
     outputs={"out": gr.Textbox()})
 ```
 
-## Workflow Checklist
+## Checklist
 
-1. **Find Spaces**: `curl "https://huggingface.co/api/spaces/semantic-search?q=task&sdk=gradio"`
-
-2. **Check API**:
+1. **Check API** before using a Space:
    ```python
    from gradio_client import Client
    Client("owner/space").view_api(return_format="dict")
    ```
 
-3. **Handle files** (Gradio returns dicts):
+2. **Handle files** (Gradio returns dicts):
    ```python
    path = file.get("path") if isinstance(file, dict) else file
    ```
 
-4. **Use postprocess** for multi-return APIs:
+3. **Use postprocess** for multi-return APIs:
    ```python
    postprocess=lambda imgs, seed, num: imgs[0]["image"]
    ```
@@ -147,4 +145,11 @@ def combine(video: str|dict, audio: str|dict) -> str:
 ```bash
 pip install daggr
 python workflow.py  # http://127.0.0.1:7860
+```
+
+## Finding Spaces (optional)
+
+Search for Gradio Spaces by task:
+```bash
+curl "https://huggingface.co/api/spaces/semantic-search?q=text+to+speech&sdk=gradio"
 ```
