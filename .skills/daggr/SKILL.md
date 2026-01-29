@@ -84,10 +84,11 @@ Out of quota? Pro gives 8x ZeroGPU + 10x inference: `https://huggingface.co/subs
 
 ## Port Connections
 
+Pass ports via `inputs={...}`:
 ```python
-next_node.input = previous_node.output_port      # Basic
-items_node.items.field_name                       # Scattered (per-item)
-scattered_node.output.all()                       # Gathered (collect list)
+inputs={"param": previous_node.output_port}       # Basic connection
+inputs={"item": items_node.items.field_name}      # Scattered (per-item)
+inputs={"all": scattered_node.output.all()}       # Gathered (collect list)
 ```
 
 ## ItemList - Dynamic Lists
@@ -130,6 +131,11 @@ final = FnNode(fn=combine,
    postprocess=lambda imgs, seed, num: imgs[0]["image"]
    ```
 
+4. **Debug with `.test()`** to validate a node in isolation:
+   ```python
+   node.test(param="value")
+   ```
+
 ## Common Patterns
 
 ```python
@@ -151,7 +157,7 @@ GradioNode("alexnasa/ltx-2-TURBO", api_name="/generate_video",
     postprocess=lambda video, seed: video,
     outputs={"video": gr.Video()})
 
-# ffmpeg composition
+# ffmpeg composition (import tempfile, subprocess)
 def combine(video: str|dict, audio: str|dict) -> str:
     v = video.get("path") if isinstance(video, dict) else video
     a = audio.get("path") if isinstance(audio, dict) else audio
@@ -163,8 +169,9 @@ def combine(video: str|dict, audio: str|dict) -> str:
 ## Run
 
 ```bash
-uv pip install daggr
+uv pip install daggr  # Python 3.10+
 uv run python workflow.py  # Starts web server at http://127.0.0.1:7860
+daggr workflow.py  # Alternative with hot reload
 ```
 
 **Troubleshooting:** Clear cache if you encounter stale state issues:
