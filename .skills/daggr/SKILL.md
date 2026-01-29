@@ -170,8 +170,7 @@ def combine(video: str|dict, audio: str|dict) -> str:
 
 ```bash
 uv pip install daggr  # Python 3.10+
-uv run python workflow.py  # Starts web server at http://127.0.0.1:7860
-daggr workflow.py  # Alternative with hot reload
+daggr workflow.py  # Starts server with hot reload at http://127.0.0.1:7860
 ```
 
 **Troubleshooting:** Clear cache if you encounter stale state issues:
