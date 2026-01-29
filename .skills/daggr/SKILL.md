@@ -12,6 +12,8 @@ metadata:
 
 Build visual DAG pipelines connecting Gradio Spaces, HF Inference Providers, and Python functions.
 
+Full docs: https://raw.githubusercontent.com/gradio-app/daggr/refs/heads/main/README.md
+
 ## Quick Start
 
 ```python
