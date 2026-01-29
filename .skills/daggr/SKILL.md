@@ -27,6 +27,13 @@ graph.launch()  # Starts web server with visual DAG UI
 ### GradioNode - Gradio Spaces
 
 ```python
+# Image generation example
+img = GradioNode("Tongyi-MAI/Z-Image-Turbo", api_name="/generate",
+    inputs={"prompt": gr.Textbox(), "resolution": "1024x1024 ( 1:1 )"},
+    postprocess=lambda imgs, *_: imgs[0]["image"],
+    outputs={"image": gr.Image()})
+
+# General pattern
 node = GradioNode(
     space_or_url="owner/space-name",
     api_name="/endpoint",
@@ -34,7 +41,6 @@ node = GradioNode(
         "param": gr.Textbox(label="Input"),   # UI input
         "other": other_node.output_port,       # Port connection
         "fixed": "constant_value",             # Fixed value
-        "dynamic": random.random,              # Callable
     },
     postprocess=lambda *returns: returns[0],   # Transform response
     outputs={"result": gr.Image(label="Output")},
@@ -56,11 +62,9 @@ node = FnNode(
 
 ### InferenceNode - [HF Inference Providers](https://huggingface.co/docs/inference-providers)
 
-⏺ text-to-image | image-to-image | image-to-text | image-to-video | text-to-video | text-to-speech | automatic-speech-recognition
+Find models: `https://huggingface.co/api/models?inference_provider=all&pipeline_tag=text-to-image` (swap pipeline_tag)
 
-Find models by task: `https://huggingface.co/api/models?inference_provider=all&pipeline_tag=text-to-image`
-
-VLM/LLM models only: https://router.huggingface.co/v1/models
+VLM/LLM only: https://router.huggingface.co/v1/models
 
 ```python
 node = InferenceNode(
