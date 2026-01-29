@@ -47,14 +47,16 @@ image1 = GradioNode(
     name="Image 1",
     inputs={
         "prompt": prompt1,
-        "resolution": "1280x720 ( 16:9 )",
+        "resolution": "1024x1024 ( 1:1 )",
         "steps": 8,
+        "seed": 42,
+        "shift": 3,
+        "gallery_images": [],
         "random_seed": True,
     },
+    postprocess=lambda images, seed_used, seed_number: images[0],
     outputs={
         "image": gr.Image(label="Scene 1"),
-        "seed_str": None,
-        "seed_int": None,
     },
 )
 

@@ -1648,6 +1648,7 @@ class DaggrServer:
             graph_data["type"] = "error"
             graph_data["run_id"] = run_id
             graph_data["error"] = str(e)
+            graph_data["nodes_to_clear"] = nodes_to_execute
             if error_node:
                 graph_data["node"] = error_node
                 graph_data["completed_node"] = error_node

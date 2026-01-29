@@ -456,11 +456,14 @@
 			const errorNode = data.node || data.completed_node;
 			if (errorNode) {
 				nodeErrors[errorNode] = data.error;
-				delete nodeStartTimes[errorNode];
-				runningNodes.delete(errorNode);
-				runningNodes = new Set(runningNodes);
-				stopTimerIfNoRunning();
 			}
+			const nodesToClear = data.nodes_to_clear || (errorNode ? [errorNode] : []);
+			for (const nodeName of nodesToClear) {
+				delete nodeStartTimes[nodeName];
+				runningNodes.delete(nodeName);
+			}
+			runningNodes = new Set(runningNodes);
+			stopTimerIfNoRunning();
 		} else if (data.type === 'node_complete' || data.type === 'error') {
 			const completedNode = data.completed_node;
 			
