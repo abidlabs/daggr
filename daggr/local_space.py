@@ -26,6 +26,7 @@ def _get_spaces_cache_dir() -> Path:
 def _get_logs_dir() -> Path:
     return get_daggr_cache_dir() / "logs"
 
+
 _running_processes: dict[str, subprocess.Popen] = {}
 
 
