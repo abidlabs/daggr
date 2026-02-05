@@ -20,10 +20,10 @@ from fastapi.responses import (
 
 from daggr.executor import AsyncExecutor
 from daggr.node import _FILE_TYPE_COMPONENTS
-
-_FILE_COMP_TYPES = {c.lower() for c in _FILE_TYPE_COMPONENTS}
 from daggr.session import ExecutionSession
 from daggr.state import SessionState
+
+_FILE_COMP_TYPES = {c.lower() for c in _FILE_TYPE_COMPONENTS}
 
 if TYPE_CHECKING:
     from gradio.themes import Base as Theme
