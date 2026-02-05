@@ -37,6 +37,9 @@
 	let nodeErrors = $state<Record<string, string>>({});
 	let timerTick = $state(0);
 	let hfUser = $state<{ username: string; fullname: string; avatar_url: string } | null>(null);
+	let nodeRunModes = $state<Record<string, 'step' | 'toHere'>>({});
+	let runModeMenuOpen = $state<string | null>(null);
+	let runModeVersion = $state(0);
 
 	let sheets = $state<Sheet[]>([]);
 	let currentSheetId = $state<string | null>(null);
@@ -898,6 +901,10 @@
 			isPanning = true;
 			startPan = { x: e.clientX - transform.x, y: e.clientY - transform.y };
 		}
+		const target = e.target as HTMLElement;
+		if (!target.closest('.run-controls')) {
+			runModeMenuOpen = null;
+		}
 	}
 
 	function handleMouseMove(e: MouseEvent) {
@@ -958,13 +965,14 @@
 		debounceSaveTransform();
 	}
 
-	function handleRunToNode(e: MouseEvent, nodeName: string) {
+	function handleRunNode(e: MouseEvent, nodeName: string, runMode?: 'step' | 'toHere') {
 		e.stopPropagation();
 		
 		if (runningNodes.has(nodeName)) {
 			return;
 		}
 		
+		const mode = runMode ?? nodeRunModes[nodeName] ?? 'toHere';
 		const runId = `${nodeName}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 		
 		runningNodes.add(nodeName);
@@ -980,9 +988,31 @@
 				selected_results: selectedResultIndex,
 				run_id: runId,
 				sheet_id: currentSheetId,
-				hf_token: getStoredToken()
+				hf_token: getStoredToken(),
+				run_ancestors: mode === 'toHere'
 			}));
 		}
+	}
+
+	function setRunMode(nodeName: string, mode: 'step' | 'toHere') {
+		nodeRunModes[nodeName] = mode;
+		nodeRunModes = { ...nodeRunModes };
+		runModeVersion++;
+		runModeMenuOpen = null;
+	}
+
+	function toggleRunModeMenu(e: MouseEvent, nodeName: string) {
+		e.stopPropagation();
+		if (runModeMenuOpen === nodeName) {
+			runModeMenuOpen = null;
+		} else {
+			runModeMenuOpen = nodeName;
+		}
+	}
+
+	function getRunMode(nodeName: string): 'step' | 'toHere' {
+		void runModeVersion;
+		return nodeRunModes[nodeName] ?? 'toHere';
 	}
 
 	function getBadgeStyle(type: string): string {
@@ -1184,29 +1214,69 @@
 						<span class="node-name">{node.name}</span>
 					{/if}
 					{#if !node.is_input_node}
-						<span 
-							class="run-btn"
-							class:running={runningNodes.has(node.name)}
-							class:disabled={runningNodes.has(node.name)}
-							onclick={(e) => handleRunToNode(e, node.name)}
-							title={runningNodes.has(node.name) ? "Running..." : (node.is_map_node ? "Run all items" : "Run to here")}
-							role="button"
-							tabindex="0"
-						>
-							{#if node.is_map_node}
-								<svg class="run-icon-svg run-icon-map" viewBox="0 0 14 12" fill="currentColor">
-									<path d="M2 1 L12 6 L2 11 Z" opacity="0.5" transform="translate(-2, 0)"/>
-									<path d="M2 1 L12 6 L2 11 Z" transform="translate(2, 0)"/>
+						{#key runModeVersion}
+						<div class="run-controls">
+							<span 
+								class="run-btn"
+								class:running={runningNodes.has(node.name)}
+								class:disabled={runningNodes.has(node.name)}
+								onclick={(e) => handleRunNode(e, node.name)}
+								title={runningNodes.has(node.name) ? "Running..." : ((nodeRunModes[node.name] ?? 'toHere') === 'toHere' ? "Run to here" : "Run this step")}
+								role="button"
+								tabindex="0"
+							>
+								{#if node.is_map_node || (nodeRunModes[node.name] ?? 'toHere') === 'toHere'}
+									<svg class="run-icon-svg run-icon-double" viewBox="0 0 14 12" fill="currentColor">
+										<path d="M2 1 L10 6 L2 11 Z" opacity="0.5" transform="translate(-2, 0)"/>
+										<path d="M2 1 L10 6 L2 11 Z" transform="translate(2, 0)"/>
+									</svg>
+								{:else}
+									<svg class="run-icon-svg" viewBox="0 0 10 12" fill="currentColor">
+										<path d="M1 1 L9 6 L1 11 Z"/>
+									</svg>
+								{/if}
+								{#if runningNodes.has(node.name)}
+									<span class="run-badge"></span>
+								{/if}
+							</span>
+							<span 
+								class="run-mode-toggle"
+								onclick={(e) => toggleRunModeMenu(e, node.name)}
+								role="button"
+								tabindex="0"
+								title="Run options"
+							>
+								<svg viewBox="0 0 10 6" fill="currentColor">
+									<path d="M1 1 L5 5 L9 1" stroke="currentColor" stroke-width="1.5" fill="none"/>
 								</svg>
-							{:else}
-								<svg class="run-icon-svg" viewBox="0 0 10 12" fill="currentColor">
-									<path d="M1 1 L9 6 L1 11 Z"/>
-								</svg>
+							</span>
+							{#if runModeMenuOpen === node.name}
+								<div class="run-mode-menu">
+									<button 
+										class="run-mode-option"
+										class:active={(nodeRunModes[node.name] ?? 'toHere') === 'step'}
+										onclick={(e) => { e.stopPropagation(); setRunMode(node.name, 'step'); }}
+									>
+										<svg class="run-mode-icon" viewBox="0 0 10 12" fill="currentColor">
+											<path d="M1 1 L9 6 L1 11 Z"/>
+										</svg>
+										<span>Run this step</span>
+									</button>
+									<button 
+										class="run-mode-option"
+										class:active={(nodeRunModes[node.name] ?? 'toHere') === 'toHere'}
+										onclick={(e) => { e.stopPropagation(); setRunMode(node.name, 'toHere'); }}
+									>
+										<svg class="run-mode-icon run-mode-icon-double" viewBox="0 0 14 12" fill="currentColor">
+											<path d="M2 1 L10 6 L2 11 Z" opacity="0.5" transform="translate(-2, 0)"/>
+											<path d="M2 1 L10 6 L2 11 Z" transform="translate(2, 0)"/>
+										</svg>
+										<span>Run to here</span>
+									</button>
+								</div>
 							{/if}
-							{#if runningNodes.has(node.name)}
-								<span class="run-badge"></span>
-							{/if}
-						</span>
+						</div>
+						{/key}
 					{/if}
 				</div>
 
@@ -1994,14 +2064,21 @@
 		text-decoration: underline;
 	}
 
+	.run-controls {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
 	.run-btn {
 		position: relative;
 		font-size: 10px;
 		color: var(--color-accent);
 		cursor: pointer;
 		padding: 2px 6px;
-		border-radius: 4px;
+		border-radius: 4px 0 0 4px;
 		border: 1px solid var(--color-accent);
+		border-right: none;
 		background: transparent;
 		user-select: none;
 		transition: all 0.15s;
@@ -2015,13 +2092,84 @@
 		animation: pulse 1.5s ease-in-out infinite;
 	}
 
+	.run-mode-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 18px;
+		border: 1px solid var(--color-accent);
+		border-radius: 0 4px 4px 0;
+		color: var(--color-accent);
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.run-mode-toggle:hover {
+		background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+	}
+
+	.run-mode-toggle svg {
+		width: 8px;
+		height: 5px;
+	}
+
+	.run-mode-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		right: 0;
+		background: color-mix(in srgb, var(--block-background-fill) 98%, transparent);
+		border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+		border-radius: 6px;
+		padding: 4px;
+		min-width: 130px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+		z-index: 1000;
+	}
+
+	.run-mode-option {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 6px 8px;
+		background: transparent;
+		border: none;
+		border-radius: 4px;
+		color: var(--body-text-color-subdued);
+		font-size: 11px;
+		cursor: pointer;
+		transition: all 0.15s;
+		text-align: left;
+	}
+
+	.run-mode-option:hover {
+		background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+		color: var(--body-text-color);
+	}
+
+	.run-mode-option.active {
+		color: var(--color-accent);
+		background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+	}
+
+	.run-mode-icon {
+		width: 10px;
+		height: 10px;
+		flex-shrink: 0;
+	}
+
+	.run-mode-icon-double {
+		width: 12px;
+	}
+
 	.run-icon-svg {
 		width: 10px;
 		height: 10px;
 		display: block;
 	}
 
-	.run-icon-svg.run-icon-map {
+	.run-icon-svg.run-icon-double {
 		width: 14px;
 		height: 12px;
 	}
