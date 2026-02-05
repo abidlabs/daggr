@@ -255,7 +255,7 @@ llm = InferenceNode(
 
 ### Preprocessing and Postprocessing
 
-Both `GradioNode` and `FnNode` support optional `preprocess` and `postprocess` hooks that transform data on the way in and out of a node.
+`GradioNode`, `FnNode`, and `InferenceNode` all support optional `preprocess` and `postprocess` hooks that transform data on the way in and out of a node.
 
 **`preprocess`** receives the input dict and returns a modified dict before the node executes. This is useful when an upstream node outputs data in a different format than the downstream node expects:
 
