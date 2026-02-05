@@ -423,7 +423,11 @@ class AsyncExecutor:
             inference_inputs = {
                 k: v for k, v in all_inputs.items() if k in node._input_ports
             }
+            if node._preprocess:
+                inference_inputs = node._preprocess(inference_inputs)
             raw_result = _call_inference_task(client, node._task, inference_inputs)
+            if node._postprocess:
+                raw_result = self._apply_postprocess(node._postprocess, raw_result)
             result = self._map_inference_result(node, raw_result)
 
         elif isinstance(node, InteractionNode):
@@ -501,7 +505,11 @@ class AsyncExecutor:
             inference_inputs = {
                 k: v for k, v in all_inputs.items() if k in variant._input_ports
             }
+            if variant._preprocess:
+                inference_inputs = variant._preprocess(inference_inputs)
             raw_result = _call_inference_task(client, variant._task, inference_inputs)
+            if variant._postprocess:
+                raw_result = self._apply_postprocess(variant._postprocess, raw_result)
             result = self._map_inference_result(variant, raw_result)
 
         else:

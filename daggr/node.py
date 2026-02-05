@@ -477,6 +477,10 @@ class InferenceNode(Node):
         inputs: Dict mapping input port names to values or components.
         outputs: Dict mapping output port names to components.
         validate: Whether to validate the model exists on the Hub.
+        preprocess: Optional function that receives the input dict and returns a
+            modified dict before the inference call.
+        postprocess: Optional function that receives the raw inference result and
+            returns a transformed value before it is mapped to output ports.
 
     Example:
         >>> llm = InferenceNode("meta-llama/Llama-2-7b-chat-hf")
@@ -489,11 +493,15 @@ class InferenceNode(Node):
         inputs: dict[str, Any] | None = None,
         outputs: dict[str, Any] | None = None,
         validate: bool = True,
+        preprocess: Callable[[dict], dict] | None = None,
+        postprocess: Callable[..., Any] | None = None,
     ):
         super().__init__(name)
         self._model = model
         self._task: str | None = None
         self._task_fetched: bool = False
+        self._preprocess = preprocess
+        self._postprocess = postprocess
 
         if not self._name:
             # Strip provider tag (e.g., ":replicate") for display name
