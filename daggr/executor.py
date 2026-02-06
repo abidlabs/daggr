@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
+from gradio_client.utils import is_file_obj_with_meta
+
 if TYPE_CHECKING:
     from daggr.graph import Graph
     from daggr.session import ExecutionSession
@@ -377,8 +379,11 @@ class AsyncExecutor:
         for port_name, value in node._fixed_inputs.items():
             all_inputs[port_name] = value() if callable(value) else value
         for port_name, component in node._input_components.items():
-            if hasattr(component, "value") and component.value is not None:
-                all_inputs[port_name] = component.value
+            if hasattr(component, "value"):
+                val = component.value
+                if is_file_obj_with_meta(val):
+                    val = val["path"]
+                all_inputs[port_name] = val
         all_inputs.update(inputs)
 
         if isinstance(node, GradioNode):
@@ -459,8 +464,11 @@ class AsyncExecutor:
         for port_name, value in variant._fixed_inputs.items():
             all_inputs[port_name] = value() if callable(value) else value
         for port_name, component in variant._input_components.items():
-            if hasattr(component, "value") and component.value is not None:
-                all_inputs[port_name] = component.value
+            if hasattr(component, "value"):
+                val = component.value
+                if is_file_obj_with_meta(val):
+                    val = val["path"]
+                all_inputs[port_name] = val
         all_inputs.update(inputs)
 
         if isinstance(variant, GradioNode):

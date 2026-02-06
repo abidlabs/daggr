@@ -17,6 +17,7 @@ from fastapi.responses import (
     PlainTextResponse,
     Response,
 )
+from gradio_client.utils import is_file_obj_with_meta
 
 from daggr.executor import AsyncExecutor
 from daggr.node import _FILE_TYPE_COMPONENTS
@@ -748,12 +749,16 @@ class DaggrServer:
         if hasattr(comp, "step"):
             props["step"] = comp.step
 
+        value = getattr(comp, "value", None)
+        if is_file_obj_with_meta(value):
+            value = self._file_to_url(value["path"])
+
         return {
             "component": comp_class.lower(),
             "type": comp_type,
             "port_name": port_name,
             "props": props,
-            "value": getattr(comp, "value", None),
+            "value": value,
         }
 
     def _file_to_url(self, value: Any) -> Any:
