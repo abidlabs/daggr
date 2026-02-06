@@ -2,4 +2,4 @@
 "daggr": minor
 ---
 
-feat:Add stop button to cancel running nodes
+feat:Fix gr.Image not rendering with initial value or None input
