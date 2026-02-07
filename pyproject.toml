@@ -31,6 +31,7 @@ repository = "https://github.com/abidlabs/daggr"
 dev = [
     "ruff==0.9.3",
     "pytest>=8.0.0,<9.0.0",
+    "pytest-xdist>=3.0.0",
     "playwright>=1.40.0",
 ]
 
@@ -73,6 +74,9 @@ exclude = [
 [tool.hatch.version]
 path = "daggr/package.json"
 pattern = ".*\"version\":\\s*\"(?P<version>[^\"]+)\""
+
+[tool.pytest.ini_options]
+addopts = "-n auto"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

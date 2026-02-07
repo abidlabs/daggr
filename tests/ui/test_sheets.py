@@ -62,7 +62,7 @@ def test_create_new_sheet(page: Page, temp_db: str):
         expect(new_sheet_btn).to_be_visible()
         new_sheet_btn.click()
 
-        page.wait_for_timeout(1000)
+        expect(page.locator(".sheet-dropdown")).not_to_be_visible(timeout=5000)
 
         sheet_selector.click()
         sheet_options = page.locator(".sheet-option")

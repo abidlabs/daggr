@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import os
 import re
 import shutil
 import socket
+import sqlite3
 import sys
 import tempfile
+import threading
+import time
+import webbrowser
 from pathlib import Path
 
 INITIAL_PORT_VALUE = int(os.getenv("DAGGR_SERVER_PORT", "7860"))
@@ -38,8 +43,6 @@ def find_python_imports(file_path: Path) -> list[Path]:
     try:
         with open(file_path) as f:
             content = f.read()
-
-        import ast
 
         tree = ast.parse(content)
 
@@ -463,8 +466,6 @@ def _get_gradio_version() -> str:
 
 def _delete_sheets(script_path: Path, force: bool = False):
     """Delete all cached data for the project defined in the script."""
-    import sqlite3
-
     from daggr.graph import Graph
     from daggr.state import get_daggr_cache_dir
 
@@ -604,12 +605,7 @@ def _run_with_reload(script_path: Path, host: str, port: int, watch_daggr: bool)
 
     os.environ["DAGGR_PORT"] = str(actual_port)
 
-    import threading
-    import webbrowser
-
     def open_browser():
-        import time
-
         time.sleep(1.0)
         webbrowser.open_new_tab(f"http://{host}:{actual_port}")
 
@@ -629,10 +625,6 @@ def _run_with_reload(script_path: Path, host: str, port: int, watch_daggr: bool)
 
 def _create_app():
     """Factory function for uvicorn to create the FastAPI app."""
-    import importlib.util
-    import sys
-    from pathlib import Path
-
     from daggr.graph import Graph
     from daggr.server import DaggrServer
 
@@ -686,9 +678,9 @@ def _create_app():
     captured_graph._validate_edges()
     server = DaggrServer(captured_graph)
 
-    print(
-        f"\n  daggr running at http://{os.environ['DAGGR_HOST']}:{os.environ['DAGGR_PORT']}\n"
-    )
+    base_url = f"http://{os.environ['DAGGR_HOST']}:{os.environ['DAGGR_PORT']}"
+    print(f"\n  UI running at: {base_url}")
+    print(f"  API server at: {base_url}/api\n")
 
     return server.app
 

@@ -7,13 +7,27 @@ concurrency control and session isolation.
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
-from gradio_client.utils import is_file_obj_with_meta
+from gradio_client.utils import is_file_obj_with_meta, traverse
+
+from daggr.node import (
+    ChoiceNode,
+    FnNode,
+    GradioNode,
+    InferenceNode,
+    InteractionNode,
+)
+from daggr.session import ExecutionSession
+from daggr.state import get_daggr_files_dir
 
 if TYPE_CHECKING:
     from daggr.graph import Graph
-    from daggr.session import ExecutionSession
 
 
 class FileValue(str):
@@ -23,13 +37,7 @@ class FileValue(str):
 
 
 def _download_file(url: str, hf_token: str | None = None) -> str:
-    import hashlib
-    from pathlib import Path
-    from urllib.parse import urlparse
-
     import httpx
-
-    from daggr.state import get_daggr_files_dir
 
     parsed = urlparse(url)
     ext = Path(parsed.path).suffix or ".bin"
@@ -53,10 +61,6 @@ def _download_file(url: str, hf_token: str | None = None) -> str:
 
 def _postprocess_inference_result(task: str | None, result: Any) -> Any:
     """Unwrap HF Inference Client result objects to get the actual data."""
-    import uuid
-
-    from daggr.state import get_daggr_files_dir
-
     if result is None:
         return None
 
@@ -199,9 +203,6 @@ def _call_inference_task(client: Any, task: str | None, inputs: dict[str, Any]) 
 
 def _read_file_as_bytes(file_path: str) -> bytes:
     """Read a file path or data URL as bytes."""
-    import base64
-    from pathlib import Path
-
     if file_path.startswith("data:"):
         try:
             _, encoded = file_path.split(",", 1)
@@ -270,8 +271,6 @@ class AsyncExecutor:
         return client
 
     def _get_client(self, session: ExecutionSession, node_name: str):
-        from daggr.node import ChoiceNode, GradioNode
-
         node = self.graph.nodes[node_name]
 
         if isinstance(node, ChoiceNode):
@@ -360,14 +359,6 @@ class AsyncExecutor:
         self, session: ExecutionSession, node_name: str, inputs: dict[str, Any]
     ) -> Any:
         """Synchronous node execution (called from thread pool for FnNode)."""
-        from daggr.node import (
-            ChoiceNode,
-            FnNode,
-            GradioNode,
-            InferenceNode,
-            InteractionNode,
-        )
-
         node = self.graph.nodes[node_name]
 
         if isinstance(node, ChoiceNode):
@@ -458,8 +449,6 @@ class AsyncExecutor:
         variant,
         inputs: dict[str, Any],
     ) -> Any:
-        from daggr.node import FnNode, GradioNode, InferenceNode
-
         all_inputs = {}
         for port_name, value in variant._fixed_inputs.items():
             all_inputs[port_name] = value() if callable(value) else value
@@ -539,8 +528,6 @@ class AsyncExecutor:
         user_inputs: dict[str, Any] | None = None,
     ) -> Any:
         """Execute a single node with proper concurrency control."""
-        from daggr.node import FnNode, GradioNode, InferenceNode
-
         node = self.graph.nodes[node_name]
         scattered_edges = self._get_scattered_input_edges(node_name)
 
@@ -599,8 +586,6 @@ class AsyncExecutor:
         scattered_edges: list,
         user_inputs: dict[str, Any] | None = None,
     ) -> dict[str, list[Any]]:
-        from daggr.node import FnNode, GradioNode, InferenceNode
-
         first_edge = scattered_edges[0]
         source_name = first_edge.source_node._name
         source_port = first_edge.source_port
@@ -678,8 +663,6 @@ class AsyncExecutor:
         return {"_scattered_results": list(results), "_items": items}
 
     def _wrap_file_input(self, value: Any) -> Any:
-        from pathlib import Path
-
         from gradio_client import handle_file
 
         if isinstance(value, FileValue):
@@ -697,11 +680,6 @@ class AsyncExecutor:
 
     def _save_data_url_to_file(self, data_url: str) -> str | None:
         """Convert a base64 data URL to a file and return the path."""
-        import base64
-        import uuid
-
-        from daggr.state import get_daggr_files_dir
-
         if not data_url.startswith("data:"):
             return None
 
@@ -736,8 +714,6 @@ class AsyncExecutor:
         return postprocess(raw_result)
 
     def _extract_file_urls(self, data: Any, hf_token: str | None = None) -> Any:
-        from gradio_client.utils import is_file_obj_with_meta, traverse
-
         def download_and_wrap(file_obj: dict) -> FileValue:
             url = file_obj.get("url")
             if url:
@@ -824,8 +800,6 @@ class SequentialExecutor:
     """
 
     def __init__(self, graph: Graph, hf_token: str | None = None):
-        from daggr.session import ExecutionSession
-
         self.graph = graph
         self._async_executor = AsyncExecutor(graph)
         self._session = ExecutionSession(graph, hf_token)

@@ -1036,7 +1036,7 @@
 		if (mode === 'step') {
 			highlightedNodes = new Set([nodeName]);
 		} else {
-			const ancestors = getAncestors(nodeName);
+			const ancestors = getAncestors(nodeName).filter(a => !nodeResults[a]?.length);
 			highlightedNodes = new Set([nodeName, ...ancestors]);
 		}
 	}
@@ -1305,6 +1305,8 @@
 							<span 
 								class="run-btn"
 								onclick={(e) => handleRunNode(e, node.name)}
+								onmouseenter={() => highlightRunTargets(node.name, getRunMode(node.name))}
+								onmouseleave={() => clearHighlight()}
 								title={(nodeRunModes[node.name] ?? 'toHere') === 'toHere' ? "Run to here" : "Run this step"}
 								role="button"
 								tabindex="0"

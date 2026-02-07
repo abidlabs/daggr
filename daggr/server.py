@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import mimetypes
 import os
+import secrets
 import socket
+import tempfile
+import threading
+import time
+import traceback
+import uuid
+import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,10 +27,16 @@ from fastapi.responses import (
 )
 from gradio_client.utils import is_file_obj_with_meta
 
-from daggr.executor import AsyncExecutor
-from daggr.node import _FILE_TYPE_COMPONENTS
+from daggr.executor import AsyncExecutor, FileValue
+from daggr.node import (
+    _FILE_TYPE_COMPONENTS,
+    ChoiceNode,
+    GradioNode,
+    InferenceNode,
+    InteractionNode,
+)
 from daggr.session import ExecutionSession
-from daggr.state import SessionState
+from daggr.state import SessionState, get_daggr_cache_dir
 
 _FILE_COMP_TYPES = {c.lower() for c in _FILE_TYPE_COMPONENTS}
 
@@ -92,8 +106,14 @@ def _get_theme(theme: "Theme | str | None") -> "Theme":
 
 
 class DaggrServer:
-    def __init__(self, graph: Graph, theme: "Theme | str | None" = None):
+    def __init__(
+        self,
+        graph: Graph,
+        theme: "Theme | str | None" = None,
+        api_server: bool = True,
+    ):
         self.graph = graph
+        self.api_server = api_server
         self.executor = AsyncExecutor(graph)
         self.state = SessionState(db_path=os.environ.get("DAGGR_DB_PATH"))
         self.app = FastAPI(title=graph.name)
@@ -295,17 +315,21 @@ class DaggrServer:
                 session, node_name, session_id, input_values, selected_results
             )
 
-        @self.app.get("/api/schema")
-        async def get_api_schema():
-            return self.graph.get_api_schema()
+        if self.api_server:
 
-        @self.app.post("/api/call")
-        async def call_workflow(request: Request):
-            return await self._execute_workflow_api(request, subgraph_id=None)
+            @self.app.get("/api/schema")
+            async def get_api_schema():
+                return self.graph.get_api_schema()
 
-        @self.app.post("/api/call/{subgraph_id}")
-        async def call_subgraph(subgraph_id: str, request: Request):
-            return await self._execute_workflow_api(request, subgraph_id=subgraph_id)
+            @self.app.post("/api/call")
+            async def call_workflow(request: Request):
+                return await self._execute_workflow_api(request, subgraph_id=None)
+
+            @self.app.post("/api/call/{subgraph_id}")
+            async def call_subgraph(subgraph_id: str, request: Request):
+                return await self._execute_workflow_api(
+                    request, subgraph_id=subgraph_id
+                )
 
         @self.app.websocket("/ws/{session_id}")
         async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -460,8 +484,6 @@ class DaggrServer:
                             )
                         except Exception as e:
                             print(f"[ERROR] get_graph failed: {e}")
-                            import traceback
-
                             traceback.print_exc()
                             await websocket.send_json(
                                 {"type": "error", "error": str(e)}
@@ -530,8 +552,6 @@ class DaggrServer:
                 for task in running_tasks.values():
                     task.cancel()
                 print(f"[ERROR] WebSocket error: {e}")
-                import traceback
-
                 traceback.print_exc()
 
         @self.app.get("/")
@@ -560,10 +580,6 @@ class DaggrServer:
 
         @self.app.get("/file/{path:path}")
         async def serve_local_file(path: str):
-            import tempfile
-
-            from daggr.state import get_daggr_cache_dir
-
             if len(path) >= 2 and path[1] == ":":
                 file_path = Path(path)
             else:
@@ -625,8 +641,6 @@ class DaggrServer:
 </html>"""
 
     def _get_node_url(self, node) -> str | None:
-        from daggr.node import GradioNode, InferenceNode
-
         if isinstance(node, GradioNode):
             src = node._src
             if src.startswith("http://") or src.startswith("https://"):
@@ -638,8 +652,6 @@ class DaggrServer:
         return None
 
     def _get_node_type(self, node, node_name: str) -> str:
-        from daggr.node import ChoiceNode
-
         type_map = {
             "FnNode": "FN",
             "TextInput": "INPUT",
@@ -672,15 +684,11 @@ class DaggrServer:
         return self.graph._nx_graph.out_degree(node_name) == 0
 
     def _is_running_locally(self, node) -> bool:
-        from daggr.node import GradioNode
-
         if not isinstance(node, GradioNode):
             return False
         return bool(node._run_locally and node._local_url and not node._local_failed)
 
     def _build_variant_data(self, variant, input_values: dict) -> dict[str, Any]:
-        from daggr.node import GradioNode
-
         variant_name = variant._name
         if isinstance(variant, GradioNode) and not variant._name_explicitly_set:
             variant_name = f"{variant._src}"
@@ -1056,8 +1064,6 @@ class DaggrServer:
         component_to_input_node: dict[int, str] = {}
         creation_order = 0
         for node_name in self.graph.nodes:
-            from daggr.node import ChoiceNode
-
             node = self.graph.nodes[node_name]
 
             if isinstance(node, ChoiceNode):
@@ -1209,8 +1215,6 @@ class DaggrServer:
             )
 
         for node_name in self.graph.nodes:
-            from daggr.node import ChoiceNode
-
             node = self.graph.nodes[node_name]
             x, y = node_positions.get(node_name, (50, 50))
 
@@ -1400,12 +1404,6 @@ class DaggrServer:
         return result if has_user_value else None
 
     def _save_data_url_as_gradio_file(self, data_url: str):
-        import base64
-        import tempfile
-        import uuid
-
-        from daggr.executor import FileValue
-
         try:
             header, data = data_url.split(",", 1)
             mime_type = header.split(":")[1].split(";")[0]
@@ -1431,8 +1429,6 @@ class DaggrServer:
             return data_url
 
     def _convert_urls_to_file_values(self, data: Any) -> Any:
-        from daggr.executor import FileValue
-
         if isinstance(data, str):
             if data.startswith(("http://", "https://", "/")) and any(
                 data.lower().endswith(ext)
@@ -1465,8 +1461,6 @@ class DaggrServer:
         input_values: dict[str, Any],
         selected_results: dict[str, int],
     ) -> dict:
-        from daggr.node import ChoiceNode, InteractionNode
-
         if not session_id:
             session_id = self.state.create_session(self.graph.persist_key)
 
@@ -1558,8 +1552,6 @@ class DaggrServer:
         user_id: str | None = None,
         run_ancestors: bool = True,
     ):
-        from daggr.node import ChoiceNode, InteractionNode
-
         can_persist = (
             user_id is not None
             and sheet_id is not None
@@ -1684,8 +1676,6 @@ class DaggrServer:
                         "run_id": run_id,
                     }
 
-                    import time
-
                     start_time = time.time()
                     result = await self.executor.execute_node(
                         session, node_name, user_input
@@ -1753,8 +1743,6 @@ class DaggrServer:
     async def _execute_workflow_api(
         self, request: Request, subgraph_id: str | None = None
     ) -> JSONResponse:
-        from daggr.node import ChoiceNode
-
         try:
             body = await request.json()
         except Exception:
@@ -1857,11 +1845,6 @@ class DaggrServer:
         open_browser: bool = True,
         **kwargs,
     ):
-        import secrets
-        import time
-        import webbrowser
-
-        import uvicorn
         from gradio.utils import colab_check, ipython_check
 
         if host is None:
@@ -1893,7 +1876,9 @@ class DaggrServer:
             server.run_in_thread()
 
             local_url = f"http://{host}:{actual_port}"
-            print(f"\n  daggr running at {local_url}")
+            print(f"\n  UI running at: {local_url}")
+            if self.api_server:
+                print(f"  API server at: {local_url}/api")
 
             share_url = None
             if share:
@@ -1930,12 +1915,15 @@ class DaggrServer:
                 server.close()
         else:
             local_url = f"http://{host}:{actual_port}"
-            print(f"\n  daggr running at {local_url}\n")
+            print(f"\n  UI running at: {local_url}")
+            if self.api_server:
+                print(f"  API server at: {local_url}/api")
+            print()
             if open_browser:
-                import threading
-
                 threading.Timer(0.5, lambda: webbrowser.open_new_tab(local_url)).start()
-            uvicorn.run(self.app, host=host, port=actual_port, **kwargs)
+            uvicorn.run(
+                self.app, host=host, port=actual_port, log_level="warning", **kwargs
+            )
 
 
 class _Server(uvicorn.Server):
@@ -1943,9 +1931,6 @@ class _Server(uvicorn.Server):
         pass
 
     def run_in_thread(self):
-        import threading
-        import time
-
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
         start = time.time()

@@ -398,7 +398,7 @@ class GradioNode(Node):
 
         client = _client_cache.get_client(self._src)
         if client is None:
-            client = Client(self._src, download_files=False)
+            client = Client(self._src, download_files=False, verbose=False)
             _client_cache.set_client(self._src, client)
 
         api_info = client.view_api(return_format="dict", print_info=False)

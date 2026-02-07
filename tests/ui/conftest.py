@@ -17,7 +17,7 @@ def temp_db():
         pass
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def browser() -> Generator[Browser, None, None]:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)

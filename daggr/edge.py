@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from daggr.port import GatheredPort, ScatteredPort
+
 if TYPE_CHECKING:
     from daggr.port import PortLike
 
@@ -25,8 +27,6 @@ class Edge:
     """
 
     def __init__(self, source: PortLike, target: PortLike):
-        from daggr.port import GatheredPort, ScatteredPort
-
         self.is_scattered = isinstance(source, ScatteredPort)
         self.is_gathered = isinstance(source, GatheredPort)
         self.item_key: str | None = None

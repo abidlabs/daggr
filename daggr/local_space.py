@@ -4,11 +4,15 @@ import atexit
 import hashlib
 import json
 import os
+import re
+import select
 import shutil
 import socket
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -139,8 +143,6 @@ class LocalSpaceManager:
             parts = content.split("---", 2)
             if len(parts) < 3:
                 return None
-
-            import re
 
             match = re.search(r"sdk_version:\s*['\"]?([^\s'\"]+)", parts[1])
             if match:
@@ -343,10 +345,6 @@ class LocalSpaceManager:
     def _wait_for_ready(
         self, url: str, timeout: int, verbose: bool = False
     ) -> tuple[bool, str]:
-        import select
-        import urllib.error
-        import urllib.request
-
         output_lines: list[str] = []
         start = time.time()
         last_status_time = start
