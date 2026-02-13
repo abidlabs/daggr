@@ -753,12 +753,25 @@
 		}
 		return node.selected_variant ?? 0;
 	}
-
+	
 	function getComponentsToRender(node: GraphNode): GradioComponentData[] {
-		if (node.is_input_node && node.input_components?.length) {
+		let comps: GradioComponentData[] = [];
+		if (node.embed_inputs && node.input_components) {
+			const unconnectedInputs = node.input_components.filter(comp => {
+				const isConnected = edges.some(e => 
+					e.to_node === node.id && e.to_port === comp.port_name
+				);
+				return !isConnected;
+			});
+			comps = [...comps, ...unconnectedInputs];
+		} 	
+		else if (node.is_input_node && node.input_components?.length) {
 			return node.input_components;
 		}
-		return getSelectedResults(node);
+		const results = getSelectedResults(node);
+		comps = [...comps, ...results];
+
+		return comps;
 	}
 
 	function hasUserProvidedOutput(node: GraphNode): boolean {
@@ -1369,10 +1382,15 @@
 				<div class="node-body">
 					<div class="ports-left">
 						{#each node.inputs as port (port.name)}
-							<div class="port-row">
-								<span class="port-dot input"></span>
-								<span class="port-label">{port.name}</span>
-							</div>
+							{@const isWidget = node.embed_inputs && node.input_components?.some(c => c.port_name === port.name)}
+							{@const isConnected = edges.some(e => e.to_node === node.id && e.to_port === port.name)}
+							
+							{#if !isWidget || isConnected}
+								<div class="port-row">
+									<span class="port-dot input"></span>
+									<span class="port-label">{port.name}</span>
+								</div>
+							{/if}
 						{/each}
 					</div>
 					<div class="ports-right">
@@ -1430,7 +1448,7 @@
 							<EmbeddedComponent
 								{comp}
 								nodeId={node.id}
-								isInputNode={node.is_input_node}
+								isInputNode={node.is_input_node || (node.input_components && node.input_components.some(c => c.port_name === comp.port_name))}
 								value={getComponentValue(node, comp)}
 								onchange={(portName, value) => handleInputChange(node.id, portName, value)}
 							/>
