@@ -785,12 +785,12 @@
 	}
 
 	function getNodeHeight(node: GraphNode): number {
-		const portRows = Math.max(node.inputs.length, node.outputs.length, 1);
-		const componentsToRender = getComponentsToRender(node);
-		const embeddedHeight = componentsToRender.length * EMBEDDED_COMPONENT_HEIGHT;
-		return HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + (portRows * PORT_ROW_HEIGHT) + embeddedHeight + BODY_PADDING_TOP;
+	 	const portRows = Math.max(node.inputs.length, node.outputs.length, 1);
+	 	const componentsToRender = getComponentsToRender(node);
+	 	const embeddedHeight = componentsToRender.length * EMBEDDED_COMPONENT_HEIGHT;
+	 	return HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + (portRows * PORT_ROW_HEIGHT) + embeddedHeight + BODY_PADDING_TOP;
 	}
-
+	
 	let nodeMap = $derived.by(() => {
 		const map = new Map<string, GraphNode>();
 		for (const node of nodes) {
@@ -2453,8 +2453,8 @@
 
 	.embedded-components {
 		padding: 8px 10px;
-		border-top: 1px solid color-mix(in srgb, var(--color-accent) 8%, transparent);
-		max-height: 200px;
+		border-top: 1px solid color-mix(in srgb, var(--color-accent) 8%, transparent);		
+		max-height: 300px;
 		overflow-y: auto;
 	}
 
