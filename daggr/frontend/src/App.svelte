@@ -62,8 +62,31 @@
 	let loginLoading = $state(false);
 	let loginError = $state('');
 	let hasShownPersistencePrompt = $state(false);
+	let useColoredWires = $state(true);
 
+	const WIRE_COLORS = [
+        '#EF4444', // Red
+        '#F97316', // Orange
+        '#EAB308', // Yellow
+        '#84CC16', // Lime
+        '#22C55E', // Green
+        '#06B6D4', // Cyan
+        '#3B82F6', // Blue
+        '#8B5CF6', // Violet
+        '#D946EF', // Fuchsia
+        '#F43F5E', // Rose
+    ];
 	const HF_TOKEN_KEY = 'daggr_hf_token';
+
+	function getHashColor(str: string): string {
+        if (!useColoredWires) return 'var(--color-accent)';
+    
+        let hash = 5381;
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) + hash) + str.charCodeAt(i);
+        }
+        return WIRE_COLORS[Math.abs(hash) % WIRE_COLORS.length];
+    }
 
 	function getStoredToken(): string | null {
 		try {
@@ -408,6 +431,10 @@
 			
 			graphData = data.data;
 			userId = newUserId;
+			
+			if (data.data.use_colored_wires !== undefined) {
+				useColoredWires = data.data.use_colored_wires;
+			}
 			
 			if (newSheetId) {
 				currentSheetId = newSheetId;
@@ -806,10 +833,27 @@
 		return HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + (portIndex * PORT_ROW_HEIGHT) + (PORT_ROW_HEIGHT / 2);
 	}
 
-	let edgePaths = $derived.by(() => {
+	let inputColors = $derived.by(() => {
+        const colors: Record<string, string> = {};
+        for (const edge of edges) {
+            const fromNode = nodeMap.get(edge.from_node);
+            const toNode = nodeMap.get(edge.to_node);
+            if (!toNode || !fromNode) continue;
+            
+            const colorKey = `${fromNode.id}:${edge.from_port}`; 
+            const color = getHashColor(colorKey);
+			colors[`${toNode.id}:${edge.to_port}`] = color;
+        }
+        return colors;
+    });
+
+	let edgePaths = $derived.by(() => {        
+        const newInputColors: Record<string, string> = {};
+
 		const paths: { 
 			id: string; 
 			d: string; 
+            color: string;
 			is_scattered: boolean; 
 			is_gathered: boolean;
 			isStale: boolean;
@@ -829,6 +873,11 @@
 
 			if (fromPortIdx === -1 || toPortIdx === -1) continue;
 
+            const colorKey = `${fromNode.id}:${edge.from_port}`;
+            const color = getHashColor(colorKey);
+            
+            newInputColors[`${toNode.id}:${edge.to_port}`] = color;
+
 			const fromPortY = getPortY(fromPortIdx);
 			const toPortY = getPortY(toPortIdx);
 
@@ -838,8 +887,8 @@
 			const y2 = toNode.y + toPortY;
 
 			const dx = Math.abs(x2 - x1);
-			//const cp = Math.max(dx * 0.4, 50);
- 			const cp = Math.max(dx * 0.5, 100);
+			const cp = Math.max(dx * 0.5, 100);
+
 			const is_scattered = edge.is_scattered || false;
 			const is_gathered = edge.is_gathered || false;
 
@@ -847,6 +896,7 @@
 			const toNodeSnapshot = nodeInputsSnapshots[toNode.name]?.[toNodeSelectedIdx];
 			
 			let isStale = false;
+            
 			if (toNodeSnapshot == null) {
 				isStale = true;
 			} else {
@@ -860,7 +910,7 @@
 
 			let forkPaths: string[] = [];
 
-			if (is_scattered) {
+			if (is_scattered) {            
 				const forkStart = x2 - 30;
 				const forkSpread = 8;
 				const d = `M ${x1} ${y1} C ${x1 + cp} ${y1}, ${forkStart - 20} ${y2}, ${forkStart} ${y2}`;
@@ -869,8 +919,8 @@
 					`M ${forkStart} ${y2} L ${x2} ${y2}`,
 					`M ${forkStart} ${y2} L ${x2} ${y2 + forkSpread}`,
 				];
-				paths.push({ id: edge.id, d, is_scattered, is_gathered, isStale, forkPaths, fromNodeName: fromNode.name, toNodeName: toNode.name });
-			} else if (is_gathered) {
+				paths.push({ id: edge.id, d, color, is_scattered, is_gathered, isStale, forkPaths, fromNodeName: fromNode.name, toNodeName: toNode.name });
+			} else if (is_gathered) {               
 				const forkEnd = x1 + 30;
 				const forkSpread = 8;
 				forkPaths = [
@@ -879,13 +929,13 @@
 					`M ${x1} ${y1 + forkSpread} L ${forkEnd} ${y1}`,
 				];
 				const d = `M ${forkEnd} ${y1} C ${forkEnd + cp - 30} ${y1}, ${x2 - cp} ${y2}, ${x2} ${y2}`;
-				paths.push({ id: edge.id, d, is_scattered, is_gathered, isStale, forkPaths, fromNodeName: fromNode.name, toNodeName: toNode.name });
+				paths.push({ id: edge.id, d, color, is_scattered, is_gathered, isStale, forkPaths, fromNodeName: fromNode.name, toNodeName: toNode.name });
 			} else {
 				const d = `M ${x1} ${y1} C ${x1 + cp} ${y1}, ${x2 - cp} ${y2}, ${x2} ${y2}`;
-				paths.push({ id: edge.id, d, is_scattered, is_gathered, isStale, fromNodeName: fromNode.name, toNodeName: toNode.name });
+				paths.push({ id: edge.id, d, color, is_scattered, is_gathered, isStale, fromNodeName: fromNode.name, toNodeName: toNode.name });
 			}
 		}
-		
+       		
 		return paths;
 	});
 
@@ -1314,16 +1364,27 @@
 		style="transform: translate({transform.x}px, {transform.y}px) scale({transform.scale})"
 	>
 		<svg class="edges-svg">
-			{#each edgePaths as edge (edge.id)}
-				<path d={edge.d} class="edge-path" class:stale={edge.isStale} class:will-run={highlightedNodes.has(edge.fromNodeName) && highlightedNodes.has(edge.toNodeName)} />
+			{#each edgePaths as edge (edge.id)}              
+				<path 
+                    d={edge.d} 
+                    class="edge-path" 
+                    class:stale={edge.isStale} 
+                    class:will-run={highlightedNodes.has(edge.fromNodeName) && highlightedNodes.has(edge.toNodeName)}
+                    style="stroke: {edge.color};" 
+                />
 				{#if edge.forkPaths}
 					{#each edge.forkPaths as forkD}
-						<path d={forkD} class="edge-path edge-fork" class:stale={edge.isStale} class:will-run={highlightedNodes.has(edge.fromNodeName) && highlightedNodes.has(edge.toNodeName)} />
+						<path 
+                            d={forkD} 
+                            class="edge-path edge-fork" 
+                            class:stale={edge.isStale} 
+                            class:will-run={highlightedNodes.has(edge.fromNodeName) && highlightedNodes.has(edge.toNodeName)}
+                            style="stroke: {edge.color};"
+                        />
 					{/each}
 				{/if}
 			{/each}
 		</svg>
-
 		{#each nodes as node (node.id)}
 			{@const componentsToRender = getComponentsToRender(node)}
 			{@const timeDisplay = getNodeTimeDisplay(node.name)}
@@ -1428,17 +1489,23 @@
 				<div class="node-body">
 					<div class="ports-left">
 						{#each node.inputs as port (port.name)}
-							<div class="port-row">
-								<span class="port-dot input"></span>
+						 	{@const dotColor = inputColors[`${node.id}:${port.name}`] || 'var(--neutral-500)'}
+							<div class="port-row">								
+								<span 
+									class="port-dot input" 
+									style="background: {dotColor}; box-shadow: 0 0 6px {dotColor}40;"
+								></span>
 								<span class="port-label">{port.name}</span>
 							</div>
 						{/each}
 					</div>
 					<div class="ports-right">
 						{#each node.outputs as portName (portName)}
+							{@const colorKey = `${node.id}:${portName}`}
+							{@const dotColor = getHashColor(colorKey)}
 							<div class="port-row">
-								<span class="port-label">{portName}</span>
-								<span class="port-dot output"></span>
+								<span class="port-label">{portName}</span>							
+								<span class="port-dot output" style="background: {dotColor}; box-shadow: 0 0 6px {dotColor}40;"></span>
 							</div>
 						{/each}
 					</div>

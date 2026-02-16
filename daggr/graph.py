@@ -262,6 +262,7 @@ class Graph:
         name: str,
         nodes: Sequence[Node] | None = None,
         persist_key: str | bool | None = None,
+        use_colored_wires: bool = True, 
     ):
         """Create a new Graph.
 
@@ -274,6 +275,7 @@ class Graph:
                          Set to False to disable persistence entirely.
                          Use a custom string to ensure persistence works correctly
                          if you change the display name later.
+            use_colored_wires: 
         """
         if not name or not isinstance(name, str):
             raise ValueError(
@@ -281,6 +283,7 @@ class Graph:
                 "Example: Graph(name='My Podcast Generator', nodes=[...])"
             )
         self.name = name
+        self.use_colored_wires = use_colored_wires
         if persist_key is False:
             self.persist_key = None
         elif persist_key:

@@ -1415,6 +1415,7 @@ class DaggrServer:
             "selected_results": selected_results,
             "history": history,
             "session_id": session_id,
+            "use_colored_wires": getattr(self.graph, "use_colored_wires", True),
         }
 
     def _get_ancestors(self, node_name: str) -> list[str]:
