@@ -62,7 +62,10 @@
 	let loginLoading = $state(false);
 	let loginError = $state('');
 	let hasShownPersistencePrompt = $state(false);
-	let useColoredWires = $state(true);
+	let useColoredWires = $state(true);	
+	let allowNodeResize = $state(true); 
+	let resizingNodeId = $state<string | null>(null);
+	let startResize = $state({ x: 0, y: 0, w: 0, h: 0, ratio: 1 });
 
 	const WIRE_COLORS = [
         '#EF4444', // Red
@@ -133,6 +136,8 @@
 	}
 
 	const NODE_WIDTH = 280;
+	const MIN_NODE_WIDTH = NODE_WIDTH;	
+	const PADDING_HEIGHT = 50;
 	const HEADER_HEIGHT = 36;
 	const HEADER_BORDER = 1;
 	const BODY_PADDING_TOP = 8;
@@ -435,6 +440,10 @@
 			if (data.data.use_colored_wires !== undefined) {
 				useColoredWires = data.data.use_colored_wires;
 			}
+
+			if (data.data.allow_node_resize !== undefined) {
+				allowNodeResize = data.data.allow_node_resize;
+			}
 			
 			if (newSheetId) {
 				currentSheetId = newSheetId;
@@ -568,13 +577,19 @@
 			if (data.nodes) {
 				const currentPositions = new Map();
 				if (graphData && graphData.nodes) {
-					graphData.nodes.forEach(n => currentPositions.set(n.id, { x: n.x, y: n.y }));
+					graphData.nodes.forEach(n => currentPositions.set(n.id, { x: n.x, y: n.y, width: n.width, height: n.height }));
 				}
 
 				const mergedNodes = data.nodes.map((newNode: any) => {
 					const currentPos = currentPositions.get(newNode.id);
 					if (currentPos) {
-						return { ...newNode, x: currentPos.x, y: currentPos.y };
+						return { 
+							...newNode, 
+							x: currentPos.x, 
+							y: currentPos.y,                            
+							width: newNode.width != null ? Number(newNode.width) : (currentPos.width != null ? Number(currentPos.width) : null), 
+							height: newNode.height != null ? Number(newNode.height) : (currentPos.height != null ? Number(currentPos.height) : null)
+						};
 					}
 					return newNode;
 				});
@@ -815,10 +830,23 @@
 	}
 
 	function getNodeHeight(node: GraphNode): number {
-		const portRows = Math.max(node.inputs.length, node.outputs.length, 1);
-		const componentsToRender = getComponentsToRender(node);
-		const embeddedHeight = componentsToRender.length * EMBEDDED_COMPONENT_HEIGHT;
-		return HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + (portRows * PORT_ROW_HEIGHT) + embeddedHeight + BODY_PADDING_TOP;
+		const portRows = Math.max(node.inputs?.length || 0, node.outputs?.length || 0, 1);
+		const headerAndPortsHeight = HEADER_HEIGHT + HEADER_BORDER + BODY_PADDING_TOP + 
+                                    (portRows * PORT_ROW_HEIGHT) + BODY_PADDING_TOP;
+
+		
+		const componentsToRender = getComponentsToRender(node);		
+		const embeddedHeight = componentsToRender.length > 0 
+			? (componentsToRender.length * EMBEDDED_COMPONENT_HEIGHT) + PADDING_HEIGHT 
+			: 0;
+
+		const idealAutoHeight = headerAndPortsHeight + embeddedHeight;
+		
+		if (allowNodeResize && node.height) {
+			return Math.max(node.height, headerAndPortsHeight);
+		}
+		
+		return idealAutoHeight;
 	}
 
 	let nodeMap = $derived.by(() => {
@@ -880,8 +908,13 @@
 
 			const fromPortY = getPortY(fromPortIdx);
 			const toPortY = getPortY(toPortIdx);
-
-			const x1 = fromNode.x + NODE_WIDTH;
+			
+			const currentWidth = allowNodeResize 
+                ? Math.max(MIN_NODE_WIDTH, (fromNode.width || NODE_WIDTH)) 
+                : NODE_WIDTH;
+                
+			const x1 = fromNode.x + currentWidth;
+			
 			const y1 = fromNode.y + fromPortY;
 			const x2 = toNode.x;
 			const y2 = toNode.y + toPortY;
@@ -1010,15 +1043,29 @@
             
             if (nodeIndex !== -1) {            
                 graphData.nodes[nodeIndex].x = mouseX - dragNodeOffset.x;
-                graphData.nodes[nodeIndex].y = mouseY - dragNodeOffset.y;
-                
-                // Opcional: Se quiser alinhar à grade (snap to grid 20px)
-                // graphData.nodes[nodeIndex].x = Math.round((mouseX - dragNodeOffset.x) / 20) * 20;
-                // graphData.nodes[nodeIndex].y = Math.round((mouseY - dragNodeOffset.y) / 20) * 20;
+                graphData.nodes[nodeIndex].y = mouseY - dragNodeOffset.y;                
             }
         }
-	}
+		if (resizingNodeId && graphData?.nodes) {
+			const dx = (e.clientX - startResize.x) / transform.scale;
+            const dy = (e.clientY - startResize.y) / transform.scale; 
 
+			const nodeIndex = graphData.nodes.findIndex(n => n.id === resizingNodeId);
+			
+			if (nodeIndex !== -1) {
+                const node = graphData.nodes[nodeIndex];
+                const minWidth = NODE_WIDTH; 
+                
+                const widthFromX = startResize.w + dx;
+                const widthFromY = (startResize.h + dy) * startResize.ratio;
+                const newWidth = Math.max(minWidth, widthFromX, widthFromY);
+                
+                node.width = newWidth;
+
+                node.height = newWidth / startResize.ratio;
+			}
+		}
+    }
 	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
@@ -1036,7 +1083,21 @@
             }
 			draggingNodeId = null;
 		}
-	}
+		if (resizingNodeId) {
+			const node = nodes.find(n => n.id === resizingNodeId);
+			if (node && wsConnected) {
+				ws.send(JSON.stringify({
+					action: 'save_node_layout',
+					node_id: resizingNodeId,
+					x: node.x,
+					y: node.y,
+					width: node.width,
+					height: node.height
+				}));
+        	}
+        	resizingNodeId = null;
+		}	
+    }	
 
 	function handleWheel(e: WheelEvent) {
 		const target = e.target as HTMLElement;
@@ -1345,6 +1406,22 @@
             y: mouseY - nodeY
         };
     }
+	function handleResizeMouseDown(e: MouseEvent, node: GraphNode) {
+		e.stopPropagation();
+		e.preventDefault();
+		
+		resizingNodeId = node.id;
+		const currentH = getNodeHeight(node);
+		const currentW = node.width || NODE_WIDTH;
+		
+		startResize = {
+			x: e.clientX,
+			y: e.clientY,
+			w: currentW,
+			h: currentH,
+			ratio: currentW / currentH
+		};
+	}
 </script>
 
 <div 
@@ -1391,9 +1468,20 @@
 			<div 
 				class="node"
 				class:will-run={highlightedNodes.has(node.name)}
-				style="left: {node.x}px; top: {node.y}px; width: {NODE_WIDTH}px;"
+				style="
+						left: {node.x}px; 
+						top: {node.y}px; 
+						width: {allowNodeResize ? Math.max(MIN_NODE_WIDTH, (node.width || NODE_WIDTH)) : NODE_WIDTH}px;
+						height: {getNodeHeight(node)}px;
+					"
 				onmousedown={(e) => handleNodeMouseDown(e, node.id, node.x, node.y)}
 			>
+			{#if allowNodeResize}
+				<div 
+					class="resize-handle" 
+					onmousedown={(e) => handleResizeMouseDown(e, node)}
+				></div>
+			{/if}
 				{#if timeDisplay}
 					<div class="exec-time" class:running={timeDisplay.isRunning} class:error={timeDisplay.isError}>{timeDisplay.text}</div>
 				{/if}
@@ -2281,6 +2369,25 @@
 		overflow: visible;
 		cursor: default;
 		transition: border-color 0.15s ease, box-shadow 0.15s ease;
+		min-width: 100px;
+    	min-height: 50px;
+		display:flex;
+		flex-direction: column;
+	}
+	.resize-handle {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		width: 15px;
+		height: 15px;
+		cursor: nwse-resize;
+		background: linear-gradient(135deg, transparent 50%, var(--color-accent) 50%);
+		border-radius: 0 0 10px 0; /* Combina com o border-radius do nó */
+		opacity: 0.5;
+	}
+
+	.resize-handle:hover {
+		opacity: 1;
 	}
 
 	.node.will-run {
@@ -2499,7 +2606,9 @@
 	}
 
 	.ports-right {
-		align-items: flex-end;
+		align-items: flex-end;        
+        margin-right: -4px; 
+        z-index: 10;
 	}
 
 	.port-row {
@@ -2567,10 +2676,16 @@
 	}
 
 	.embedded-components {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+		width: 100%;
 		padding: 8px 10px;
-		border-top: 1px solid color-mix(in srgb, var(--color-accent) 8%, transparent);
-		max-height: 200px;
-		overflow-y: auto;
+		border-top: 1px solid color-mix(in srgb, var(--color-accent) 8%, transparent);		
+		border-bottom-left-radius: 9px;
+    	border-bottom-right-radius: 9px;
+		overflow: hidden;
 	}
 
 	.variants-accordion {
@@ -2640,6 +2755,8 @@
 		padding: 6px 10px;
 		background: color-mix(in srgb, var(--color-accent) 5%, transparent);
 		border-top: 1px solid color-mix(in srgb, var(--color-accent) 10%, transparent);
+		border-bottom-left-radius: 9px;
+    	border-bottom-right-radius: 9px;
 	}
 
 	.result-nav {
@@ -2674,5 +2791,38 @@
 		font-family: 'SF Mono', Monaco, monospace;
 		min-width: 32px;
 		text-align: center;
+	}
+	:global(.embedded-components .embedded-component) {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+	}
+	:global(.embedded-components [class*="gr-"][class*="-wrap"]) {
+		display: flex !important;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+		width: 100%;
+	}
+	:global(.embedded-components .gr-label) {
+		flex: 0 0 auto; 
+	}
+	:global(.embedded-components .gr-input),
+	:global(.embedded-components textarea),
+	:global(.embedded-components .json-content),
+	:global(.embedded-components .image-container),
+	:global(.embedded-components .video-container) {
+		flex: 1 !important;
+		min-height: 0;
+	}	
+	:global(.embedded-components textarea.gr-input) {
+		height: 100% !important;
+	}	
+	:global(.embedded-components img),
+	:global(.embedded-components video) {
+		flex: 1;
+		max-height: 100%;
+		object-fit: contain;
 	}
 </style>

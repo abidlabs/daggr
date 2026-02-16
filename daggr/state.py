@@ -105,11 +105,20 @@ class SessionState:
                 node_name TEXT,
                 x REAL,
                 y REAL,
+                width REAL,
+                height REAL,
                 updated_at TEXT,
                 FOREIGN KEY (sheet_id) REFERENCES sheets(sheet_id) ON DELETE CASCADE,
                 PRIMARY KEY (sheet_id, node_name)
             )
         """)
+        cursor.execute("PRAGMA table_info(node_layouts)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "width" not in columns:
+            cursor.execute("ALTER TABLE node_layouts ADD COLUMN width REAL")
+        if "height" not in columns:
+            cursor.execute("ALTER TABLE node_layouts ADD COLUMN height REAL")
+
         conn.commit()
         conn.close()
 
@@ -468,16 +477,24 @@ class SessionState:
     def get_or_create_session(self, session_id: str | None, graph_name: str) -> str:
         return self.get_or_create_sheet("local", graph_name, session_id)
 
-    def save_node_layout(self, sheet_id: str, node_name: str, x: float, y: float):
+    def save_node_layout(
+        self,
+        sheet_id: str,
+        node_name: str,
+        x: float,
+        y: float,
+        width: float = None,
+        height: float = None,
+    ):
         now = datetime.now().isoformat()
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO node_layouts (sheet_id, node_name, x, y, updated_at)
-               VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO node_layouts (sheet_id, node_name, x, y, width, height, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(sheet_id, node_name) 
-               DO UPDATE SET x = excluded.x, y = excluded.y, updated_at = excluded.updated_at""",
-            (sheet_id, node_name, x, y, now),
+               DO UPDATE SET x=excluded.x, y=excluded.y, width=excluded.width, height=excluded.height, updated_at=excluded.updated_at""",
+            (sheet_id, node_name, x, y, width, height, now),
         )
         conn.commit()
         conn.close()
@@ -486,12 +503,17 @@ class SessionState:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT node_name, x, y FROM node_layouts WHERE sheet_id = ?",
+            "SELECT node_name, x, y, width, height FROM node_layouts WHERE sheet_id = ?",
             (sheet_id,),
         )
         results = cursor.fetchall()
         conn.close()
         layouts = {}
-        for node_name, x, y in results:
-            layouts[node_name] = {"x": x, "y": y}
+        for row in results:
+            layouts[row[0]] = {
+                "x": row[1],
+                "y": row[2],
+                "width": row[3],
+                "height": row[4],
+            }
         return layouts

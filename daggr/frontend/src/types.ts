@@ -41,6 +41,8 @@ export interface GraphNode {
 	output_components?: GradioComponentData[];
 	x: number;
 	y: number;
+	width: number;
+	height: number;
 	status: string;
 	is_output_node: boolean;
 	is_input_node: boolean;
