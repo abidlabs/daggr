@@ -99,6 +99,17 @@ class SessionState:
             ON node_results(sheet_id, node_name)
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS node_layouts (
+                sheet_id TEXT,
+                node_name TEXT,
+                x REAL,
+                y REAL,
+                updated_at TEXT,
+                FOREIGN KEY (sheet_id) REFERENCES sheets(sheet_id) ON DELETE CASCADE,
+                PRIMARY KEY (sheet_id, node_name)
+            )
+        """)
         conn.commit()
         conn.close()
 
@@ -440,6 +451,7 @@ class SessionState:
         return {
             "inputs": self.get_inputs(sheet_id),
             "results": self.get_all_results(sheet_id),
+            "layout": self.get_node_layouts(sheet_id),
         }
 
     def clear_sheet_data(self, sheet_id: str):
@@ -455,3 +467,31 @@ class SessionState:
 
     def get_or_create_session(self, session_id: str | None, graph_name: str) -> str:
         return self.get_or_create_sheet("local", graph_name, session_id)
+
+    def save_node_layout(self, sheet_id: str, node_name: str, x: float, y: float):
+        now = datetime.now().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO node_layouts (sheet_id, node_name, x, y, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(sheet_id, node_name) 
+               DO UPDATE SET x = excluded.x, y = excluded.y, updated_at = excluded.updated_at""",
+            (sheet_id, node_name, x, y, now),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_node_layouts(self, sheet_id: str) -> dict[str, dict[str, float]]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT node_name, x, y FROM node_layouts WHERE sheet_id = ?",
+            (sheet_id,),
+        )
+        results = cursor.fetchall()
+        conn.close()
+        layouts = {}
+        for node_name, x, y in results:
+            layouts[node_name] = {"x": x, "y": y}
+        return layouts

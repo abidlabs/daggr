@@ -454,6 +454,7 @@ class DaggrServer:
                                     persisted_inputs = state.get("inputs", {})
                                     persisted_results = state.get("results", {})
                                     persisted_transform = sheet.get("transform")
+                                    persisted_layout = state.get("layout", {})
 
                             node_results = {}
                             for node_name, results_list in persisted_results.items():
@@ -470,6 +471,7 @@ class DaggrServer:
                             graph_data = self._build_graph_data(
                                 node_results=node_results,
                                 input_values=persisted_inputs,
+                                node_layouts=persisted_layout,
                             )
                             graph_data["session_id"] = session_id
                             graph_data["sheet_id"] = current_sheet_id
@@ -542,6 +544,24 @@ class DaggrServer:
                         if user_id and current_sheet_id:
                             self.state.clear_sheet_data(current_sheet_id)
                             await websocket.send_json({"type": "sheet_cleared"})
+                    elif action == "save_node_layout":
+                        if user_id and current_sheet_id:
+                            node_id = data.get("node_id") # Cuidado: aqui chega o ID ou Name? 
+                            # O frontend manda node_id, mas o backend usa node_name para persistir
+                            # Precisamos converter ou garantir que o frontend mande o nome correto.
+                            # O ideal é usar o node_name real do grafo.
+                            
+                            # Vamos pegar o nome pelo ID se necessário, ou assumir que node_id == node_name 
+                            # (no daggr atual eles são quase iguais, só muda espaço por underscore)
+                            
+                            # Assumindo que o frontend manda o ID, precisamos achar o nome original no grafo
+                            target_name = self._resolve_node_name(node_id)
+                            
+                            if target_name:
+                                x = data.get("x")
+                                y = data.get("y")
+                                # Usa o método novo e limpo!
+                                self.state.save_node_layout(current_sheet_id, target_name, x, y)
 
             except WebSocketDisconnect:
                 for task in running_tasks.values():
@@ -668,6 +688,25 @@ class DaggrServer:
         class_name = node.__class__.__name__
         return type_map.get(class_name, class_name.upper())
 
+    def _resolve_node_name(self, frontend_id: str) -> str | None:
+       
+        for name in self.graph.nodes:       
+            sanitized_id = name.replace(" ", "_").replace("-", "_")
+            
+            if sanitized_id == frontend_id:
+                return name
+                        
+            node = self.graph.nodes[name]
+            if node._input_components:
+                for port_name in node._input_components:
+                    synth_name = f"{name}__{port_name}"
+                    synth_id = synth_name.replace(" ", "_").replace("-", "_")
+                    
+                    if synth_id == frontend_id:
+                        return synth_name
+                        
+        return None
+    
     def _has_scattered_input(self, node_name: str) -> bool:
         for edge in self.graph._edges:
             if edge.target_node._name == node_name and edge.is_scattered:
@@ -1048,13 +1087,14 @@ class DaggrServer:
         history: dict[str, dict[str, list[dict]]] | None = None,
         session_id: str | None = None,
         selected_results: dict[str, int] | None = None,
+        node_layouts: dict[str, dict] | None = None,
     ) -> dict:
         node_results = node_results or {}
         node_statuses = node_statuses or {}
         input_values = input_values or {}
         history = history or {}
         selected_results = selected_results or {}
-
+        node_layouts = node_layouts or {}
         depths = self._compute_node_depths()
 
         synthetic_input_nodes: list[dict[str, Any]] = []
@@ -1068,7 +1108,7 @@ class DaggrServer:
 
             if isinstance(node, ChoiceNode):
                 continue
-
+                
             if node._input_components:
                 for idx, (port_name, comp) in enumerate(node._input_components.items()):
                     comp_id = id(comp)
@@ -1159,10 +1199,15 @@ class DaggrServer:
 
         current_input_y = y_start
         for syn_node in all_input_nodes_sorted:
-            input_node_positions[syn_node["node_name"]] = (
-                input_column_x,
-                current_input_y,
-            )
+            original_name = syn_node["node_name"]
+                        
+            pos_x, pos_y = (input_column_x, current_input_y)
+                        
+            if node_layouts and original_name in node_layouts:
+                pos_x = node_layouts[original_name]["x"]
+                pos_y = node_layouts[original_name]["y"]
+            
+            input_node_positions[original_name] = (pos_x, pos_y)
             node_height = calc_node_height([syn_node["component"]], 1)
             current_input_y += node_height + y_gap
 
@@ -1218,6 +1263,10 @@ class DaggrServer:
             node = self.graph.nodes[node_name]
             x, y = node_positions.get(node_name, (50, 50))
 
+            if node_name in node_layouts:
+                x = node_layouts[node_name]["x"]
+                y = node_layouts[node_name]["y"]
+            
             result = node_results.get(node_name)
             result_str = ""
             is_scattered = self._has_scattered_input(node_name)

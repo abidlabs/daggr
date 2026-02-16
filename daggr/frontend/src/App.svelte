@@ -14,6 +14,9 @@
 	let transform = $state({ x: 0, y: 0, scale: 1 });
 	let isPanning = $state(false);
 	let startPan = $state({ x: 0, y: 0 });
+	
+	let draggingNodeId = $state<string | null>(null);
+    let dragNodeOffset = $state({ x: 0, y: 0 });
 
 	let graphData = $state<CanvasData | null>(null);
 	let sessionId = $state<string | null>(null);
@@ -536,7 +539,20 @@
 			}
 			
 			if (data.nodes) {
-				graphData = { ...graphData!, nodes: data.nodes, edges: data.edges || graphData!.edges };
+				const currentPositions = new Map();
+				if (graphData && graphData.nodes) {
+					graphData.nodes.forEach(n => currentPositions.set(n.id, { x: n.x, y: n.y }));
+				}
+
+				const mergedNodes = data.nodes.map((newNode: any) => {
+					const currentPos = currentPositions.get(newNode.id);
+					if (currentPos) {
+						return { ...newNode, x: currentPos.x, y: currentPos.y };
+					}
+					return newNode;
+				});
+				
+				graphData = { ...graphData!, nodes: mergedNodes, edges: data.edges || graphData!.edges };
 				
 				let hasNewErrors = false;
 				for (const node of data.nodes) {
@@ -822,8 +838,8 @@
 			const y2 = toNode.y + toPortY;
 
 			const dx = Math.abs(x2 - x1);
-			const cp = Math.max(dx * 0.4, 50);
-
+			//const cp = Math.max(dx * 0.4, 50);
+ 			const cp = Math.max(dx * 0.5, 100);
 			const is_scattered = edge.is_scattered || false;
 			const is_gathered = edge.is_gathered || false;
 
@@ -935,12 +951,40 @@
 			transform.x = e.clientX - startPan.x;
 			transform.y = e.clientY - startPan.y;
 		}
+		if (draggingNodeId && graphData && graphData.nodes) {
+            
+            const mouseX = (e.clientX - transform.x) / transform.scale;
+            const mouseY = (e.clientY - transform.y) / transform.scale;
+            
+            const nodeIndex = graphData.nodes.findIndex(n => n.id === draggingNodeId);
+            
+            if (nodeIndex !== -1) {            
+                graphData.nodes[nodeIndex].x = mouseX - dragNodeOffset.x;
+                graphData.nodes[nodeIndex].y = mouseY - dragNodeOffset.y;
+                
+                // Opcional: Se quiser alinhar à grade (snap to grid 20px)
+                // graphData.nodes[nodeIndex].x = Math.round((mouseX - dragNodeOffset.x) / 20) * 20;
+                // graphData.nodes[nodeIndex].y = Math.round((mouseY - dragNodeOffset.y) / 20) * 20;
+            }
+        }
 	}
 
 	function handleMouseUp() {
 		if (isPanning) {
 			isPanning = false;
 			debounceSaveTransform();
+		}
+		if (draggingNodeId) {
+            const node = nodes.find(n => n.id === draggingNodeId);
+            if (node && ws && wsConnected && canPersist && currentSheetId) {             
+                ws.send(JSON.stringify({
+                    action: 'save_node_layout',
+                    node_id: draggingNodeId,
+                    x: Math.round(node.x),
+                    y: Math.round(node.y)
+                }));
+            }
+			draggingNodeId = null;
 		}
 	}
 
@@ -1239,6 +1283,18 @@
 			}
 		}
 	}
+	function handleNodeMouseDown(e: MouseEvent, nodeId: string, nodeX: number, nodeY: number) {
+        e.stopPropagation();
+                
+        const mouseX = (e.clientX - transform.x) / transform.scale;
+        const mouseY = (e.clientY - transform.y) / transform.scale;
+
+        draggingNodeId = nodeId;
+        dragNodeOffset = {
+            x: mouseX - nodeX,
+            y: mouseY - nodeY
+        };
+    }
 </script>
 
 <div 
@@ -1275,17 +1331,20 @@
 				class="node"
 				class:will-run={highlightedNodes.has(node.name)}
 				style="left: {node.x}px; top: {node.y}px; width: {NODE_WIDTH}px;"
+				onmousedown={(e) => handleNodeMouseDown(e, node.id, node.x, node.y)}
 			>
 				{#if timeDisplay}
 					<div class="exec-time" class:running={timeDisplay.isRunning} class:error={timeDisplay.isError}>{timeDisplay.text}</div>
 				{/if}
 				<div class="node-header">
 					<span class="type-badge" style={getBadgeStyle(node.type)}>{node.type}{#if node.is_local}&nbsp;⚡{/if}</span>
-					{#if node.url}
-						<a class="node-name node-link" href={node.url} target="_blank" rel="noopener noreferrer" title="Open on Hugging Face">{node.name}</a>
-					{:else}
-						<span class="node-name">{node.name}</span>
-					{/if}
+					<div class="node-title-wrapper">
+						{#if node.url}
+							<a class="node-name node-link" href={node.url} target="_blank" rel="noopener noreferrer" title="Open on Hugging Face">{node.name}</a>
+						{:else}
+							<span class="node-name">{node.name}</span>
+						{/if}
+					</div>
 					{#if !node.is_input_node}
 						{#key runModeVersion}
 						<div class="run-controls">
@@ -2202,14 +2261,21 @@
 		flex-shrink: 0;
 	}
 
-	.node-name {
+	.node-title-wrapper {
 		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+	}
+
+	.node-name {		
 		font-size: 11px;
 		font-weight: 600;
 		color: var(--body-text-color);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		max-width: 100%;
 	}
 
 	.node-link {
