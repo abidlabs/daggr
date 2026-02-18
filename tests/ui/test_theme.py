@@ -28,6 +28,7 @@ def test_theme_support(page: Page, temp_db: str):
         assert "--body-background-fill" in css_content
         assert "--color-accent" in css_content
 
+        page.emulate_media(color_scheme="dark")
         page.goto(url)
         wait_for_graph_load(page)
 
