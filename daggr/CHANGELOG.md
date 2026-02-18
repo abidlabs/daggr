@@ -1,5 +1,11 @@
 # daggr
 
+## 0.8.0
+
+### Features
+
+- [#77](https://github.com/gradio-app/daggr/pull/77) [`9002cca`](https://github.com/gradio-app/daggr/commit/9002cca2b312731572d4d80d7efe3cd9483e19b3) - Feature: Toggle Dark/Light Mode (based on @elismasilva's changes).  Thanks @abidlabs!
+
 ## 0.7.0
 
 ### Features
