@@ -346,6 +346,56 @@ def save_audio(result):
     sf.write(out_path, data, sr)
     return out_path
 ```
+#### `InputNode`
+
+The `InputNode` allows you to group multiple Gradio input components (such as `gr.Textbox`, `gr.Slider`, or `gr.Dropdown`) into a single, organized block on the canvas. This is particularly useful for workflows with many parameters, preventing the UI from becoming cluttered with numerous individual input nodes.
+
+**How it works:** Each key defined in the `inputs` dictionary automatically becomes a distinct **output port** on the node. You can then wire these ports to downstream processing nodes.
+
+```python
+import gradio as gr
+from daggr import InputNode, GradioNode, Graph
+
+# 1. Define a group of UI controls in a single "Control Panel" node
+parameters = InputNode(
+    name="Parameters",
+    inputs={
+        "prompt": gr.Textbox(
+            label="Prompt",
+            value="A cheetah in the grassy savanna.",
+            lines=3,
+        ),
+        "height": gr.Slider(
+            label="Height", value=1024, minimum=512, maximum=2048, step=128
+        ),
+        "width": gr.Slider(
+            label="Width", value=1024, minimum=512, maximum=2048, step=128
+        )       
+    },
+)
+
+# 2. Connect the output ports to the inputs of other nodes
+glm_image = GradioNode(
+    "hf-applications/Z-Image-Turbo",
+    api_name="/generate_image",
+    inputs={
+        "prompt": parameters.prompt, # Connects to the 'prompt' output port
+        "height": parameters.height, # Connects to the 'height' output port
+        "width": parameters.width,   # Connects to the 'width' output port
+    },    
+    outputs={
+        "image": gr.Image(label="Image"),
+    },
+)
+
+graph = Graph(name="Grouped Inputs Demo", nodes=[glm_image])
+graph.launch()
+```
+
+**Key Features:**
+*   **Organization:** Instead of multiple separate blue nodes, you have a single "command center" for your pipeline settings.
+*   **Dynamic Ports:** Connection dots appear on the right side of the `InputNode` for every widget defined in the dictionary.
+*   **Full Interactivity:** All components remain fully interactive within the grouped block.
 
 ### Node Concurrency
 

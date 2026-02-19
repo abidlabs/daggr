@@ -21,6 +21,7 @@ from daggr.node import (
     FnNode,
     GradioNode,
     InferenceNode,
+    InputNode,
     InteractionNode,
 )
 from daggr.session import ExecutionSession
@@ -436,7 +437,12 @@ class AsyncExecutor:
                 "input",
                 all_inputs.get(node._input_ports[0]) if node._input_ports else None,
             )
+        elif isinstance(node, InputNode):
+            result = {}
+            for port in node._output_ports:
+                result[port] = all_inputs.get(port)
 
+            return result
         else:
             result = None
 
@@ -515,6 +521,12 @@ class AsyncExecutor:
             if variant._postprocess:
                 raw_result = self._apply_postprocess(variant._postprocess, raw_result)
             result = self._map_inference_result(variant, raw_result)
+
+        elif isinstance(variant, InputNode):
+            result = {}
+            for port in variant._output_ports:
+                result[port] = all_inputs.get(port)
+            return result
 
         else:
             result = None
