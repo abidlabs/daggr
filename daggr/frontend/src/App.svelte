@@ -2640,4 +2640,34 @@
 		color: var(--body-text-color);
 	}
 
+	.node::-webkit-scrollbar,
+	.embedded-components::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+
+	.node::-webkit-scrollbar-track,
+	.embedded-components::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.node::-webkit-scrollbar-thumb,
+	.embedded-components::-webkit-scrollbar-thumb {
+		background-color: rgba(136, 136, 136, 0.3);
+		border-radius: 10px;
+		border: 1px solid transparent;
+		background-clip: content-box;
+	}
+
+	.node::-webkit-scrollbar-thumb:hover,
+	.embedded-components::-webkit-scrollbar-thumb:hover {
+		background-color: var(--color-accent);
+	}
+
+	.node,
+	.embedded-components {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(136, 136, 136, 0.4) transparent;
+	}
+
 </style>
