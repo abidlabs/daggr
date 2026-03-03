@@ -346,6 +346,49 @@ def save_audio(result):
     sf.write(out_path, data, sr)
     return out_path
 ```
+#### `InputNode`
+
+The `InputNode` allows you to group multiple Gradio input components (such as `gr.Textbox`, `gr.Slider`, or `gr.Dropdown`) into a single, organized block on the canvas. This is particularly useful for workflows with many parameters, preventing the UI from becoming cluttered with numerous individual input nodes.
+
+**How it works:** Each key defined in the `ports` dictionary automatically becomes a distinct **output port** on the node. You can then wire these ports to downstream processing nodes.
+
+```python
+import gradio as gr
+from daggr import InputNode, GradioNode, Graph
+
+parameters = InputNode(
+    name="Parameters",
+    ports={
+        "prompt": gr.Textbox(
+            label="Prompt",
+            value="A cheetah in the grassy savanna.",
+            lines=3,
+        ),
+        "height": gr.Slider(
+            label="Height", value=1024, minimum=512, maximum=2048, step=128
+        ),
+        "width": gr.Slider(
+            label="Width", value=1024, minimum=512, maximum=2048, step=128
+        )       
+    },
+)
+
+glm_image = GradioNode(
+    "hf-applications/Z-Image-Turbo",
+    api_name="/generate_image",
+    inputs={
+        "prompt": parameters.prompt,
+        "height": parameters.height,
+        "width": parameters.width,
+    },    
+    outputs={
+        "image": gr.Image(label="Image"),
+    },
+)
+
+graph = Graph(name="Grouped Inputs Demo", nodes=[glm_image])
+graph.launch()
+```
 
 ### Node Concurrency
 

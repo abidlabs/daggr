@@ -770,3 +770,61 @@ class InteractionNode(Node):
             self._name = f"interaction_{self._id}"
 
         self._validate_ports()
+
+
+class InputNode(Node):
+    """
+    A node that groups multiple Gradio input components into a single, organized block.
+    Each component defined in the `ports` dictionary becomes a distinct output port.
+    """
+
+    _name_counters: dict[str, int] = {}
+
+    def __init__(
+        self,
+        name: str | None = None,
+        ports: dict[str, Any] | None = None,
+    ):
+        """
+        Initializes the InputNode.
+
+        Args:
+            ports: A dictionary where keys are port names and values are Gradio components (e.g., gr.Textbox).
+            name: An optional display name for the node. A default name will be generated if not provided.
+        """
+        super().__init__(name)
+
+        ports = ports or {}
+        if not isinstance(ports, dict):
+            raise TypeError(
+                "InputNode `ports` must be a dictionary mapping port names to Gradio components."
+            )
+
+        invalid_ports = [
+            f"{port_name} ({type(comp).__name__})"
+            for port_name, comp in ports.items()
+            if not _is_gradio_component(comp)
+        ]
+        if invalid_ports:
+            invalid_ports_list = ", ".join(invalid_ports)
+            raise ValueError(
+                "InputNode `ports` values must be Gradio components. "
+                f"Invalid entries: {invalid_ports_list}"
+            )
+
+        self._output_ports = list(ports.keys())
+        self._input_components = dict(ports)
+
+        self._input_ports = []
+        self._output_components = {}
+
+        if not self._name:
+            base_name = "Inputs"
+            if base_name not in InputNode._name_counters:
+                InputNode._name_counters[base_name] = 0
+                self._name = base_name
+            else:
+                InputNode._name_counters[base_name] += 1
+                self._name = f"{base_name}_{InputNode._name_counters[base_name]}"
+
+        self._validate_ports()
